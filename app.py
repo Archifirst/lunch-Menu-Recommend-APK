@@ -2,18 +2,269 @@ import streamlit as st
 import random
 import time
 import requests
-import re
-import math
 import urllib.parse
-from bs4 import BeautifulSoup
+import re
+from datetime import datetime
 import folium
 from streamlit_folium import st_folium
 
 st.set_page_config(page_title="오늘 점심 뭐 먹지?", page_icon="🍱", layout="centered")
 
-# 세션 상태 초기화 (기본 선택: '🚲')
-if "selected_radius_preset" not in st.session_state:
-    st.session_state.selected_radius_preset = "🚲"
+# --- UI/UX 전체 톤앤매너 및 간격 정돈 커스텀 CSS ---
+st.markdown(
+    """
+    <style>
+    :root, .stApp, [data-testid="stAppViewContainer"] {
+        --primary-color: #E86A3E !important;
+        --primary: #E86A3E !important;
+    }
+
+    .stApp {
+        background-color: #FAF8F5;
+        font-family: -apple-system, BlinkMacSystemFont, "Pretendard", "Apple SD Gothic Neo", sans-serif;
+    }
+    
+    .block-container {
+        padding-top: 4.0rem !important;
+        padding-bottom: 3.6rem !important;
+        max-width: 620px !important;
+    }
+
+    .section-title {
+        font-size: 14.5px !important;
+        font-weight: 700 !important;
+        color: #3E3228 !important;
+        margin-top: 0px !important;
+        margin-bottom: 8px !important;
+        letter-spacing: -0.3px !important;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    div[data-baseweb="input"] {
+        border-radius: 12px !important;
+        border: 1.5px solid #E6DFD5 !important;
+        background-color: #FFFFFF !important;
+        height: 42px !important;
+    }
+    div[data-baseweb="input"]:focus-within {
+        border-color: #E86A3E !important;
+        box-shadow: 0 0 0 2px rgba(232, 106, 62, 0.15) !important;
+    }
+
+    div[data-testid="stVerticalBlockBorderWrapper"] {
+        border-radius: 18px !important;
+        border: 1.8px solid #EAE3DB !important;
+        background-color: #FFFFFF !important;
+        box-shadow: 0 3px 12px rgba(0, 0, 0, 0.02) !important;
+        padding: 16px 16px 16px 16px !important;
+        margin-bottom: 14px !important;
+    }
+
+    div[data-testid="stVerticalBlockBorderWrapper"] div.stButton > button {
+        height: 40px !important;
+        border-radius: 11px !important;
+        transition: all 0.15s ease !important;
+        white-space: nowrap !important;
+    }
+    
+    button[data-testid*="primary"],
+    button[kind="primary"],
+    .stButton > button[data-testid*="primary"],
+    div[data-testid="stVerticalBlockBorderWrapper"] button[data-testid*="primary"],
+    div[data-testid="stVerticalBlockBorderWrapper"] button[kind="primary"],
+    div[data-testid="stVerticalBlockBorderWrapper"] div.stButton > button[kind="primary"] {
+        background-color: #E86A3E !important;
+        background: #E86A3E !important;
+        border: none !important;
+        border-color: transparent !important;
+        color: #FFFFFF !important;
+        font-size: 13.5px !important;
+        font-weight: 700 !important;
+        box-shadow: 0 2px 8px rgba(232, 106, 62, 0.25) !important;
+    }
+
+    button[data-testid*="primary"]:hover,
+    button[kind="primary"]:hover,
+    .stButton > button[data-testid*="primary"]:hover,
+    div[data-testid="stVerticalBlockBorderWrapper"] button[data-testid*="primary"]:hover,
+    div[data-testid="stVerticalBlockBorderWrapper"] button[kind="primary"]:hover {
+        background-color: #D65A2F !important;
+        background: #D65A2F !important;
+        border-color: transparent !important;
+        color: #FFFFFF !important;
+        transform: translateY(-1px);
+    }
+
+    button[data-testid*="primary"] *,
+    div[data-testid="stVerticalBlockBorderWrapper"] button[kind="primary"] * {
+        color: #FFFFFF !important;
+    }
+
+    button[data-testid*="primary"]:focus,
+    button[data-testid*="primary"]:active {
+        background-color: #E86A3E !important;
+        background: #E86A3E !important;
+        border-color: #E86A3E !important;
+        box-shadow: 0 0 0 2px rgba(232, 106, 62, 0.3) !important;
+    }
+    
+    div[data-testid="stVerticalBlockBorderWrapper"] button[kind="secondary"],
+    div[data-testid="stVerticalBlockBorderWrapper"] button[data-testid*="secondary"],
+    div[data-testid="stVerticalBlockBorderWrapper"] div[data-testid*="secondary"] > button {
+        border: 1.2px solid #EDE4DC !important;
+        background: #FFFFFF !important;
+        background-color: #FFFFFF !important;
+        color: #3E3228 !important;
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        padding: 6px 8px !important;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.02) !important;
+    }
+    div[data-testid="stVerticalBlockBorderWrapper"] button[kind="secondary"]:hover,
+    div[data-testid="stVerticalBlockBorderWrapper"] button[data-testid*="secondary"]:hover {
+        border-color: #E86A3E !important;
+        color: #E86A3E !important;
+        background: #FFFDF9 !important;
+        background-color: #FFFDF9 !important;
+        transform: translateY(-1px);
+    }
+    div[data-testid="stVerticalBlockBorderWrapper"] button[kind="secondary"] * {
+        color: #3E3228 !important;
+    }
+    div[data-testid="stVerticalBlockBorderWrapper"] button[kind="secondary"]:hover * {
+        color: #E86A3E !important;
+    }
+
+    div[data-testid="stColumn"] {
+        padding: 0 3px !important;
+    }
+
+    div[data-testid="stVerticalBlockBorderWrapper"] div.stButton:not([data-testid="stColumn"] *) {
+        margin-top: 6px !important;
+        margin-bottom: 0px !important;
+    }
+    div[data-testid="stVerticalBlockBorderWrapper"] div.stButton:not([data-testid="stColumn"] *) > button {
+        margin-bottom: 0px !important;
+    }
+
+    @keyframes roulettePulse {
+        0% {
+            transform: scale(1);
+            box-shadow: 0 4px 16px rgba(232, 106, 62, 0.35), 0 0 0 0 rgba(232, 106, 62, 0.5);
+        }
+        50% {
+            transform: scale(1.015);
+            box-shadow: 0 8px 24px rgba(232, 106, 62, 0.5), 0 0 0 8px rgba(232, 106, 62, 0);
+        }
+        100% {
+            transform: scale(1);
+            box-shadow: 0 4px 16px rgba(232, 106, 62, 0.35), 0 0 0 0 rgba(232, 106, 62, 0);
+        }
+    }
+
+    /* 룰렛 버튼 컨테이너: 상단 마진을 0으로 맞춤 */
+    div.block-container > div[data-testid="stVerticalBlock"] > div.stElementContainer:not(div[data-testid="stVerticalBlockBorderWrapper"] *) div.stButton:has(button[key="btn_trigger_random"]) {
+        margin-top: 0px !important;
+        margin-bottom: 14px !important;
+    }
+
+    div.block-container > div[data-testid="stVerticalBlock"] > div.stElementContainer:not(div[data-testid="stVerticalBlockBorderWrapper"] *) div.stButton > button[key="btn_trigger_random"] {
+        height: 64px !important;
+        min-height: 64px !important;
+        background: linear-gradient(135deg, #FF7B47 0%, #E85A2A 50%, #D84A1A 100%) !important;
+        color: #FFFFFF !important;
+        border: none !important;
+        border-radius: 16px !important;
+        animation: roulettePulse 2.2s infinite ease-in-out !important;
+        cursor: pointer !important;
+        box-shadow: 0 4px 16px rgba(232, 106, 62, 0.35) !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+
+    div.block-container > div[data-testid="stVerticalBlock"] > div.stElementContainer:not(div[data-testid="stVerticalBlockBorderWrapper"] *) div.stButton > button[key="btn_trigger_random"] p,
+    div.block-container > div[data-testid="stVerticalBlock"] > div.stElementContainer:not(div[data-testid="stVerticalBlockBorderWrapper"] *) div.stButton > button[key="btn_trigger_random"] span {
+        font-size: 18px !important;
+        font-weight: 700 !important;
+        letter-spacing: -0.4px !important;
+        color: #FFFFFF !important;
+        line-height: 1.2 !important;
+    }
+
+    div.block-container > div[data-testid="stVerticalBlock"] > div.stElementContainer:not(div[data-testid="stVerticalBlockBorderWrapper"] *) div.stButton > button[key="btn_trigger_random"]:hover {
+        background: linear-gradient(135deg, #FF662A 0%, #D64716 100%) !important;
+        transform: scale(1.015) !important;
+    }
+
+    /* 안내 경고 박스 */
+    .warning-box {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        min-height: 44px;
+        padding: 6px 12px;
+        margin: 0 0 14px 0 !important;
+        background-color: #FFFDF7;
+        border: 1.5px solid #F7D488;
+        border-radius: 12px;
+        box-sizing: border-box;
+    }
+
+    div.stElementContainer:has(iframe) {
+        margin-bottom: -4px !important;
+    }
+
+    div.stElementContainer:has(a[kind="secondaryFormSubmit"]),
+    div.stElementContainer:has(.stLinkButton) {
+        margin-top: 0px !important;
+        margin-bottom: 5px !important;
+    }
+
+    div.stElementContainer:has(button[key="btn_reset_bottom"]) {
+        margin-top: 0px !important;
+    }
+
+    @keyframes smoothFadeIn {
+        from { opacity: 0; transform: translateY(6px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .fade-in-content {
+        animation: smoothFadeIn 0.35s ease-out forwards;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+# --- API 키 로드 ---
+has_key = "KAKAO_REST_KEY" in st.secrets and bool(st.secrets["KAKAO_REST_KEY"].strip())
+KAKAO_REST_KEY = st.secrets["KAKAO_REST_KEY"].strip() if has_key else ""
+
+has_google_key = "GOOGLE_MAPS_KEY" in st.secrets and bool(st.secrets["GOOGLE_MAPS_KEY"].strip())
+GOOGLE_MAPS_KEY = st.secrets["GOOGLE_MAPS_KEY"].strip() if has_google_key else ""
+
+PRESET_RADIUS = {
+    "인근": 0.7,
+    "근거리": 1.8,
+    "원거리": 3.5,
+    "직접 입력": None
+}
+
+if "selected_radius_preset" not in st.session_state or st.session_state.selected_radius_preset not in PRESET_RADIUS:
+    st.session_state.selected_radius_preset = "근거리"
+if "custom_radius_val" not in st.session_state:
+    st.session_state.custom_radius_val = 2.0
+if "selected_cuisine" not in st.session_state:
+    st.session_state.selected_cuisine = None
+if "selected_price" not in st.session_state:
+    st.session_state.selected_price = "상관없음"
+if "selected_parking" not in st.session_state:
+    st.session_state.selected_parking = "주차 불필요"
 if "saved_result" not in st.session_state:
     st.session_state.saved_result = None
 if "spin_count" not in st.session_state:
@@ -23,857 +274,1148 @@ if "gps_coords" not in st.session_state:
 if "region_input_val" not in st.session_state:
     st.session_state.region_input_val = ""
 
-# 프리셋 거리 정의
-PRESET_RADIUS = {
-    "🚶": 0.7,
-    "🚲": 1.8,
-    "🚗": 3.5,
-    "직접 입력": None
-}
+# --- GPS 좌표 캐싱 및 역지오코딩 처리 ---
+@st.cache_data(ttl=86400, show_spinner=False)
+def kakao_reverse_geocode(lat: float, lng: float) -> str:
+    if not KAKAO_REST_KEY:
+        return "내 위치"
+    url = "https://dapi.kakao.com/v2/local/geo/coord2regioncode.json"
+    headers = {"Authorization": f"KakaoAK {KAKAO_REST_KEY}"}
+    params = {"x": str(lng), "y": str(lat)}
+    try:
+        res = requests.get(url, headers=headers, params=params, timeout=3.0)
+        if res.status_code == 200:
+            docs = res.json().get("documents", [])
+            for d in docs:
+                if d.get("region_type") == "H":
+                    return f"{d.get('region_2depth_name', '')} {d.get('region_3depth_name', '')}".strip()
+            if docs:
+                return docs[0].get("address_name", "내 위치")
+    except Exception:
+        pass
+    return "내 위치"
 
-# 행정구역 판별 키워드
-ADMIN_SUFFIXES = ("시", "도", "구", "군", "동", "읍", "면", "리", "가")
-MAJOR_ADMIN_NAMES = {
-    "서울", "부산", "대구", "인천", "광주", "대전", "울산", "세종", "경기", "강원",
-    "충북", "충남", "전북", "전남", "경북", "경남", "제주", "충청북도", "충청남도",
-    "전라북도", "전라남도", "경상북도", "경상남도", "강원도", "경기도", "제주도"
-}
+qp = st.query_params
+if qp.get("action") == "gps" and "lat" in qp and "lng" in qp:
+    try:
+        lat_f = float(qp.get("lat"))
+        lng_f = float(qp.get("lng"))
+        if st.session_state.gps_coords != (lat_f, lng_f):
+            st.session_state.gps_coords = (lat_f, lng_f)
+            detected_name = kakao_reverse_geocode(lat_f, lng_f)
+            st.session_state.region_input_val = detected_name
+            st.session_state.saved_result = None
+            st.toast(f"현재 위치 감지: '{detected_name}'", icon="📍")
+    except Exception:
+        pass
+    st.query_params.clear()
 
-def is_specific_poi_or_building(text: str) -> bool:
-    clean_text = text.strip()
-    if not clean_text:
-        return False
-    if clean_text in MAJOR_ADMIN_NAMES:
-        return False
-        
-    building_keywords = [
-        "역", "타워", "빌딩", "센터", "몰", "백화점", "마트", "아파트", "캠퍼스",
-        "대학교", "병원", "스퀘어", "코엑스", "파크", "플레이스", "호텔", "프라자", "사옥"
-    ]
-    if any(k in clean_text for k in building_keywords):
-        return True
-        
-    words = clean_text.split()
-    all_admin = True
-    for w in words:
-        if w in MAJOR_ADMIN_NAMES or any(w.endswith(sfx) for sfx in ADMIN_SUFFIXES):
-            continue
-        all_admin = False
-        break
-        
-    return not all_admin
-
-
-# 표준 스타일 및 툴팁 제거
-st.markdown(
-    """
-    <style>
-    div[data-baseweb="tooltip"],
-    div[role="tooltip"],
-    .stTooltipContent,
-    div[data-testid="stTooltipHoverTarget"] + div {
-        display: none !important;
-        visibility: hidden !important;
-        opacity: 0 !important;
-        pointer-events: none !important;
-    }
-
-    input::placeholder { opacity: 0.3 !important; }
-    input::-webkit-input-placeholder { opacity: 0.3 !important; }
-    input::-moz-placeholder { opacity: 0.3 !important; }
-    input:-ms-input-placeholder { opacity: 0.3 !important; }
-
-    div[data-testid="stTextInput"] input, div[data-testid="stNumberInput"] input {
-        height: 42px !important;
-        box-sizing: border-box !important;
-    }
-
-    .gps-wrapper {
-        display: flex;
-        flex-direction: column;
-        justify-content: flex-end;
-        height: 100%;
-    }
-    .gps-spacer {
-        height: 25px;
-    }
-    .gps-btn-custom {
-        width: 100%;
-        height: 42px !important;
-        background-color: #2E7D32;
-        color: white;
-        border: none;
-        border-radius: 8px;
-        font-weight: bold;
-        font-size: 13px;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        box-sizing: border-box;
-        transition: background-color 0.2s;
-    }
-    .gps-btn-custom:hover {
-        background-color: #1B5E20;
-    }
-
-    div[data-testid="stHorizontalBlock"] button[key^="rbtn_"] {
-        height: 42px !important;
-        border-radius: 8px !important;
-        font-size: 14px !important;
-        font-weight: bold !important;
-        padding: 0 !important;
-        transform: none !important;
-        transition: none !important;
-    }
-
-    div[data-testid="stHorizontalBlock"] button[key^="rbtn_"]:hover,
-    div[data-testid="stHorizontalBlock"] button[key^="rbtn_"]:active,
-    div[data-testid="stHorizontalBlock"] button[key^="rbtn_"]:focus {
-        transform: none !important;
-        box-shadow: none !important;
-        outline: none !important;
-    }
-
-    hr { margin: 20px 0 !important; }
-    .stTabs [data-baseweb="tab-list"] { gap: 12px; margin-bottom: 8px; }
-    .stTabs [data-baseweb="tab-panel"] { padding-top: 12px !important; }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-EXCLUDE_KEYWORDS = [
-    "삼겹살", "구이", "곱창", "막창", "대창", "양꼬치", "조개구이", "차돌박이",
-    "포차", "주점", "호프", "이자카야", "술집", "펍", "와인", "맥주", "바",
-    "소고기구이", "돼지구이", "생고기",
-    "베이커리", "빵집", "제과", "디저트", "카페", "커피", "케이크", "도넛", "마카롱"
+# ==============================================================================
+# [정밀 필터링 키워드]: 주점/술집/야식 및 던킨·디저트 원천 차단
+# ==============================================================================
+EXCLUDED_CATEGORIES = [
+    "술집", "주점", "호프", "포차", "이자카야", "바(BAR)", "요리주점", "와인바",
+    "칵테일바", "민속주점", "맥주", "룸살롱", "단란주점", "유흥주점", "라이브카페", 
+    "나이트클럽", "오뎅바", "꼬치구이전문점", "선술집", "해물주점", "실내포차",
+    "포장마차", "와인", "위스키", "선술", "감성주점", "카페", "디저트", "제과,베이커리",
+    "도넛", "실비집", "대포집", "맥줏집"
 ]
 
-EMOJI_DICT = {
-    "한식뷔페": "🍱", "제육볶음": "🥓", "제육쌈밥": "🥬", "쌈밥": "🥬",
-    "돌솥비빔밥": "🍳", "비빔밥": "🥗", "보리밥": "🥣", "백반": "🍱",
-    "김치찌개": "🥘", "된장찌개": "🥘", "차돌된장찌개": "🥘", "순두부찌개": "🥘",
-    "부대찌개": "🍲", "두부전골": "🍲", "만두전골": "🥟", "동태탕": "🐟",
-    "뼈해장국": "🍖", "해장국": "🥘", "황태해장국": "🥣", "북엇국": "🥣",
-    "콩나물국밥": "🍲", "순대국": "🍲", "설렁탕": "🥣", "곰탕": "🥣",
-    "갈비탕": "🍖", "삼계탕": "🍗", "추어탕": "🍲", "육개장": "🥘",
-    "전복죽": "🦪", "소고기야채죽": "🥣", "돈까스": "🍱", "모둠초밥": "🍣",
-    "초밥": "🍣", "텐동": "🍤", "일본라멘": "🍜", "라멘": "🍜", "우동": "🍜",
-    "쌀국수": "🍜", "짜장면": "🥢", "짬뽕": "🌶️", "마라탕": "🌶️",
-    "칼국수": "🍜", "수제비": "🥣", "비빔국수": "🥢", "냉면": "🧊",
-    "막국수": "🍜", "라면": "🍜", "닭갈비": "🥘", "파스타": "🍝",
-    "피자": "🍕", "햄버거": "🍔", "샌드위치": "🥪", "샐러드": "🥗",
-    "카레라이스": "🍛", "떡볶이": "🌶️", "김밥": "🍙", "분식": "🍢"
+EXCLUDED_NAME_KEYWORDS = [
+    "포차", "주점", "호프", "이자카야", "술집", "맥주", "와인", "비어",
+    "BEER", "노래방", "포장마차", "야시장", "소주", "오뎅바", "소주방",
+    "막걸리", "동동주", "생맥주", "달빛", "심야", "야식", "올나잇", "주막", "동동",
+    "탁주", "양조장", "브루어리", "BREW", "탭룸", "살롱", "가라오케", "선술집",
+    "대포", "대포집", "통닭발", "껍데기", "연탄구이", "원조골뱅이", "실비집", "실비",
+    # 던킨 및 순수 디저트/도넛류 브랜드 원천 배제
+    "던킨", "DUNKIN", "크리스피크림", "랜디스", "노티드", "배스킨라빈스", "베스킨"
+]
+
+JEON_KEYWORDS = [
+    "파전", "빈대떡", "부침개", "지짐이", "전이야기", "전나라", "전마을", 
+    "전선생", "종로전", "원조전", "전골목", "주막", "전사랑", "전세상"
+]
+
+NON_LUNCH_CATEGORIES = [
+    "육류,고기구이", "삼겹살", "곱창,막창", "양꼬치", "조개구이",
+    "치킨", "닭요리 > 치킨", "닭꼬치", "꼬치구이", "전,빈대떡", "닭발"
+]
+
+MEAT_SHOP_KEYWORDS = [
+    "축산", "정육", "식육", "마장", "화로", "연탄", "솥뚜껑",
+    "뒷고기", "주먹고기", "생고기", "생삼겹", "대패", "삼겹", "오겹",
+    "곱창", "막창", "대창", "특양", "양꼬치", "양갈비", "갈매기", "뽈살",
+    "야키니쿠", "우삼겹", "냉삼", "생갈비", "통닭발", "불닭발", "조개구이",
+    "장어구이", "야키토리", "쿠시카츠", "닭강정"
+]
+
+EVENING_RAW_FISH_KEYWORDS = [
+    "횟집", "회센타", "회센터", "수산", "회타운", "활어", "선어", "막회", "숙성회",
+    "물회마차", "포차회", "바다마차", "해물포차", "해산물포차", "참치정육점"
+]
+
+VIETNAMESE_NOODLE_KEYWORDS = [
+    "쌀국수", "포(PHO)", "PHO", "분짜", "반미", "포보", "미분당", "에머이",
+    "사이공", "반포식스", "포메인", "포베이", "까몬", "더포", "낭만쌀국수",
+    "아시아문", "팟타이", "포앤", "반쎄오", "월남쌈"
+]
+
+MULTI_MENU_FRANCHISES = [
+    "국수나무", "미소야", "역전우동", "한솥", "도시락",
+    "김밥천국", "고봉민", "김가네", "얌샘", "싸다김밥", "종로김밥", 
+    "선비꼬마김밥", "마녀김밥", "바르다김선생", "밥버거", "토마토김밥",
+    "분식천국", "나드리김밥", "소풍김밥"
+]
+
+STEAK_EXCLUDED_KEYWORDS = [
+    "한솥", "도시락", "김밥", "천국", "돈까스", "돈가스", "카츠", "가츠", "카쯔",
+    "함박", "함바그", "버거", "맥도날드", "롯데리아", "맘스터치", "버거킹", "토마토김밥",
+    "얌샘", "고봉민", "싸다김밥", "분식", "포장마차", "국수나무", "역전우동"
+]
+
+STRICT_SPECIALTY_KEYWORDS = {
+    "막국수": {
+        "required": ["막국수"],
+        "forbidden": ["돼지국밥", "순대", "순댓국", "감자탕", "뼈해장국", "보쌈", "족발"]
+    },
+    "돈까스": {
+        "required": ["돈까스", "돈가스", "카츠", "가츠", "카쯔", "돈카츠", "포크커틀릿"],
+        "forbidden": ["김밥", "천국", "한솥", "도시락", "떡볶이", "순대"]
+    },
+    "국밥": {
+        "required": ["국밥", "순대", "순댓국", "돼지국밥", "따로국밥", "소머리국밥", "해장국"],
+        "forbidden": ["막국수", "돈까스", "피자", "파스타"]
+    },
+    "닭갈비": {
+        "required": ["닭갈비"],
+        "forbidden": ["치킨", "통닭", "삼계탕", "백숙", "닭발"]
+    },
+    "수제비": {
+        "required": ["수제비"],
+        "forbidden": ["매운탕", "감자탕", "부대찌개", "동태탕", "포차"]
+    },
+    "칼국수": {
+        "required": ["칼국수"],
+        "forbidden": ["중국집", "짜장", "짬뽕"]
+    },
+    "초밥": {
+        "required": ["스시", "초밥"],
+        "forbidden": ["횟집", "회센터", "수산", "활어", "물회마차", "포차"]
+    },
+    "스테이크": {
+        "required": ["스테이크", "STEAK", "립하우스", "그릴", "아웃백", "빕스"],
+        "forbidden": ["한솥", "도시락", "김밥", "돈까스", "돈가스", "함박", "분식", "햄버거"]
+    },
+    "짜장면": {
+        "required": ["중화", "중국", "반점", "루", "원", "각", "짜장", "짬뽕", "차이"],
+        "forbidden": ["분식", "김밥"]
+    },
+    "짬뽕": {
+        "required": ["짬뽕", "중화", "중국", "반점", "교동"],
+        "forbidden": ["분식", "김밥"]
+    },
+    "타코": {
+        "required": ["타코", "TACO", "멕시칸", "멕시코"],
+        "forbidden": ["치킨"]
+    },
+    "인도커리": {
+        "required": ["인도", "커리", "인디아", "난", "CURRY"],
+        "forbidden": ["분식"]
+    }
 }
 
 DEFAULT_FOODS = [
-    ("한식뷔페", "🍱"), ("제육볶음", "🥓"), ("돌솥비빔밥", "🍳"),
-    ("김치찌개", "🥘"), ("차돌된장찌개", "🥘"), ("부대찌개", "🍲"), ("순두부찌개", "🥘"),
-    ("뼈해장국", "🍖"), ("순대국", "🍲"), ("설렁탕", "🥣"), ("곰탕", "🥣"), ("육개장", "🥘"),
-    ("황태해장국", "🥣"), ("콩나물국밥", "🍲"), ("닭갈비", "🥘"), ("김밥", "🍙"), ("분식", "🍢"),
-    ("떡볶이", "🌶️"), ("라면", "🍜"), ("옛날칼국수", "🍜"), ("얼큰수제비", "🥣"),
-    ("돈까스", "🍱"), ("모둠초밥", "🍣"), ("일본라멘", "🍜"), ("우동", "🍜"),
-    ("쌀국수", "🍜"), ("카레라이스", "🍛"), ("햄버거", "🍔"), ("피자", "🍕"),
-    ("파스타", "🍝"), ("샌드위치", "🥪"), ("샐러드", "🥗"), ("짜장면", "🥢"),
-    ("얼큰짬뽕", "🌶️"), ("마라탕", "🌶️"), ("냉면", "🧊"), ("메밀막국수", "🍜")
+    # 한식
+    ("김치찌개", "🥘", "김치찌개", "한식", "low"),
+    ("된장찌개", "🍲", "된장찌개", "한식", "low"),
+    ("순두부찌개", "🥚", "순두부찌개", "한식", "low"),
+    ("부대찌개", "🥓", "부대찌개", "한식", "mid"),
+    ("청국장", "🍲", "청국장", "한식", "low"),
+    ("동태탕", "🐟", "동태탕", "한식", "mid"),
+    ("국밥", "🥣", "국밥", "한식", "low"),
+    ("뼈해장국", "🍖", "뼈해장국", "한식", "low"),
+    ("설렁탕", "🥣", "설렁탕", "한식", "mid"),
+    ("곰탕", "🥩", "곰탕", "한식", "mid"),
+    ("갈비탕", "🍖", "갈비탕", "한식", "mid"),
+    ("삼계탕", "🍗", "삼계탕", "한식", "mid"),
+    ("추어탕", "🍲", "추어탕", "한식", "mid"),
+    ("육개장", "🌶", "육개장", "한식", "low"),
+    ("콩나물국밥", "🌱", "콩나물국밥", "한식", "low"),
+    ("황태해장국", "🐟", "황태해장국", "한식", "low"),
+    ("선지해장국", "🥘", "선지해장국", "한식", "low"),
+    ("도가니탕", "🥣", "도가니탕", "한식", "high"),
+    ("백반", "🍱", "백반", "한식", "low"),
+    ("제육볶음", "🔥", "제육볶음", "한식", "low"),
+    ("오징어볶음", "🦑", "오징어볶음", "한식", "mid"),
+    ("낙지볶음", "🐙", "낙지볶음", "한식", "mid"),
+    ("쭈꾸미볶음", "🐙", "쭈꾸미", "한식", "mid"),
+    ("비빔밥", "🍳", "비빔밥", "한식", "low"),
+    ("보리밥", "🌾", "보리밥", "한식", "low"),
+    ("쌈밥", "🥬", "쌈밥", "한식", "mid"),
+    ("생선구이", "🐟", "생선구이", "한식", "mid"),
+    ("닭갈비", "🍗", "닭갈비", "한식", "mid"),
+    ("찜닭", "🥔", "찜닭", "한식", "mid"),
+    ("코다리조림", "🐟", "코다리조림", "한식", "mid"),
+    ("간장게장", "🦀", "게장", "한식", "high"),
+    ("칼국수", "🍜", "칼국수", "한식", "low"),
+    ("수제비", "🥣", "수제비", "한식", "low"),
+    ("막국수", "🥢", "막국수", "한식", "low"),
+    ("냉면", "🧊", "냉면", "한식", "mid"),
+    ("잔치국수", "🍜", "잔치국수", "한식", "low"),
+    ("비빔국수", "🌶", "비빔국수", "한식", "low"),
+    ("떡볶이", "🍢", "떡볶이", "한식", "low"),
+    ("김밥", "🍙", "김밥", "한식", "low"),
+
+    # 중식
+    ("짜장면", "🥢", "짜장면", "중식", "low"),
+    ("짬뽕", "🔥", "짬뽕", "중식", "low"),
+    ("중화볶음밥", "🍚", "중국집", "중식", "low"),
+    ("마파두부밥", "🍛", "중식당", "중식", "low"),
+    ("마라탕", "🌶️", "마라탕", "중식", "mid"),
+    ("탕수육정식", "🥟", "중화요리", "중식", "mid"),
+    ("딤섬", "🥟", "딤섬", "중식", "high"),
+
+    # 일식
+    ("돈까스", "🍱", "돈까스", "일식", "mid"),
+    ("초밥", "🍣", "초밥", "일식", "mid"),
+    ("일본라멘", "🍜", "라멘", "일식", "mid"),
+    ("소바", "🥢", "메밀소바", "일식", "low"),
+    ("우동", "🍢", "우동", "일식", "low"),
+    ("사케동", "🍣", "사케동", "일식", "mid"),
+    ("가츠동", "🍛", "돈부리", "일식", "low"),
+    ("텐동", "🍤", "텐동", "일식", "mid"),
+    ("회덮밥", "🥗", "회덮밥", "일식", "mid"),
+    ("일본카레", "🍛", "카레", "일식", "low"),
+    ("오마카세", "🍣", "스시", "일식", "high"),
+
+    # 양식
+    ("파스타", "🍝", "파스타", "양식", "mid"),
+    ("피자", "🍕", "화덕피자", "양식", "mid"),
+    ("수제버거", "🍔", "수제버거", "양식", "mid"),
+    ("스테이크", "🥩", "스테이크 전문점", "양식", "high"),
+    ("리조또", "🧀", "이탈리안", "양식", "mid"),
+    ("샌드위치", "🥪", "샌드위치", "양식", "low"),
+    ("브런치", "🥞", "브런치", "양식", "mid"),
+
+    # 동남아식
+    ("쌀국수", "🍜", "쌀국수", "동남아식", "low"),
+    ("팟타이", "🥢", "팟타이", "동남아식", "mid"),
+    ("나시고랭", "🍳", "나시고랭", "동남아식", "mid"),
+    ("분짜", "🥗", "분짜", "동남아식", "mid"),
+    ("반미", "🥖", "반미", "동남아식", "low"),
+    ("똠얌꿍", "🍲", "태국음식", "동남아식", "high"),
+
+    # 인도식
+    ("인도커리", "🍛", "인도커리", "인도식", "mid"),
+    ("인도난커리", "🫓", "인도요리", "인도식", "mid"),
+    ("탄두리치킨", "🍗", "인도음식", "인도식", "high"),
+    ("카레라이스", "🍛", "커리", "인도식", "low"),
+
+    # 멕시코식
+    ("타코", "🌮", "타코", "멕시코식", "mid"),
+    ("부리또", "🌯", "부리또", "멕시코식", "low"),
+    ("퀘사디아", "🫓", "멕시칸", "멕시코식", "mid"),
+    ("파히타", "🥘", "멕시코요리", "멕시코식", "high")
 ]
 
-SICK_EXTRA_FOODS = [
-    ("전복죽", "🦪"), ("소고기야채죽", "🥣"), ("순두부찌개", "🥘"),
-    ("콩나물국밥", "🍲"), ("잔치국수", "🍜"), ("미역국정식", "🥣"), ("설렁탕", "🥣")
-]
-
-MOOD_DATA = {
-    "🥳 기분좋음": {
-        "desc": "외식·특식·양식",
-        "keywords": ["버거", "피자", "파스타", "타코", "텐동", "일식", "양식", "돈까스", "초밥"]
-    },
-    "🤯 스트레스": {
-        "desc": "화끈하고 매콤한 맛",
-        "keywords": ["마라", "짬뽕", "떡볶이", "낙지", "쭈꾸미", "매운", "육개장", "불닭", "김치"]
-    },
-    "🫠 입맛없음": {
-        "desc": "시원 산뜻한 별미",
-        "keywords": ["냉면", "막국수", "초밥", "샐러드", "소바", "비빔밥", "롤", "포케"]
-    },
-    "😴 피곤·보양": {
-        "desc": "든든한 국밥·보양식",
-        "keywords": ["국밥", "순대국", "곰탕", "설렁탕", "갈비탕", "삼계탕", "한식뷔페", "뼈해장국", "백반"]
-    },
-    "☀️ 날씨 좋음": {
-        "desc": "테이크아웃·피크닉",
-        "keywords": ["샌드위치", "버거", "햄버거", "김밥", "샐러드", "포케", "토스트", "피자", "분식"]
-    },
-    "☔ 흐림·비": {
-        "desc": "따끈한 국물과 면",
-        "keywords": ["칼국수", "전골", "수제비", "찌개", "우동", "국수", "탕", "파전", "라면"]
-    },
-    "🤢 속 안 좋음": {
-        "desc": "속편한 죽·부드러운 식사",
-        "keywords": ["죽", "본죽", "순두부", "콩나물국밥", "잔치국수", "미역국", "설렁탕"]
-    },
-    "😵‍💫 해장 시급": {
-        "desc": "개운·얼큰한 속풀이",
-        "keywords": ["해장국", "황태", "북엇국", "콩나물국밥", "짬뽕", "뼈해장국", "동태탕", "쌀국수", "순대국", "라면"]
+# --- Google Places API (New) 기반 영업시간 및 상세 정보 분석 ---
+@st.cache_data(ttl=86400, show_spinner=False)
+def fetch_google_place_details(place_name: str, lat: float, lng: float) -> dict:
+    default_res = {
+        "found": False,
+        "is_lunch_open": None,
+        "open_now": None,
+        "today_hours_text": "",
+        "price_level": None,
+        "price_level_text": "",
+        "parking_info": "",
+        "primary_type": "",
+        "rating": None,
+        "user_rating_count": None
     }
-}
 
+    if not GOOGLE_MAPS_KEY:
+        return default_res
 
-def haversine_distance(lat1, lon1, lat2, lon2):
-    R = 6371.0
-    dlat = math.radians(lat2 - lat1)
-    dlon = math.radians(lon2 - lon1)
-    a = (math.sin(dlat / 2) ** 2 + 
-         math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * 
-         math.sin(dlon / 2) ** 2)
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-    return R * c
+    url = "https://places.googleapis.com/v1/places:searchText"
+    headers = {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": GOOGLE_MAPS_KEY,
+        "X-Goog-FieldMask": (
+            "places.id,places.displayName,places.primaryTypeDisplayName,"
+            "places.regularOpeningHours,places.currentOpeningHours,"
+            "places.priceLevel,places.parkingOptions,places.rating,places.userRatingCount"
+        )
+    }
 
+    clean_name = place_name.split()[0]
+    payload = {
+        "textQuery": clean_name,
+        "locationBias": {
+            "circle": {
+                "center": {"latitude": lat, "longitude": lng},
+                "radius": 400.0
+            }
+        },
+        "maxResultCount": 1,
+        "languageCode": "ko"
+    }
 
-def clean_place_name(raw_name: str) -> str:
-    if not raw_name:
-        return ""
-    cleaned = (
-        raw_name.replace("\\u003C", "<").replace("\\u003c", "<")
-        .replace("\\u003E", ">").replace("\\u003e", ">")
-        .replace("\\u002F", "/").replace("\\u002f", "/")
-        .replace("&amp;", "&")
-    )
-    cleaned = re.sub(r"<[^>]+>", "", cleaned)
-    return re.sub(r"\s+", " ", cleaned).strip()
-
-
-def is_lunch_appropriate(menu_name: str, allow_porridge: bool = False) -> bool:
-    if any(ex in menu_name for ex in EXCLUDE_KEYWORDS):
-        return False
-    if not allow_porridge and "죽" in menu_name:
-        return False
-    return True
-
-
-def get_emoji_for_food(food_name: str) -> str:
-    for key, emoji in EMOJI_DICT.items():
-        if key in food_name or food_name in key:
-            return emoji
-    if any(k in food_name for k in ["스테이크", "소고기", "갈비", "규"]):
-        return "🥩"
-    if any(k in food_name for k in ["삼계", "닭", "치킨"]):
-        return "🍗"
-    if any(k in food_name for k in ["낙지", "문어"]):
-        return "🐙"
-    if any(k in food_name for k in ["오징어", "쭈꾸미"]):
-        return "🦑"
-    if any(k in food_name for k in ["새우", "텐", "튀김"]):
-        return "🍤"
-    if any(k in food_name for k in ["생선", "동태", "대구", "연어", "회"]):
-        return "🐟"
-    if any(k in food_name for k in ["만두", "딤섬"]):
-        return "🥟"
-    if any(k in food_name for k in ["매운", "얼큰", "마라", "짬뽕"]):
-        return "🌶️"
-    if any(k in food_name for k in ["냉", "소바", "모밀"]):
-        return "🧊"
-    if any(k in food_name for k in ["면", "국수", "라멘", "우동", "파스타"]):
-        return "🍜"
-    if any(k in food_name for k in ["찌개", "전골", "조림"]):
-        return "🥘"
-    if any(k in food_name for k in ["탕", "국밥", "순대국", "곰탕"]):
-        return "🍲"
-    if any(k in food_name for k in ["죽", "미역국"]):
-        return "🥣"
-    if any(k in food_name for k in ["김밥", "초밥"]):
-        return "🍙"
-    if any(k in food_name for k in ["밥", "덮밥", "정식", "백반"]):
-        return "🍱"
-    if any(k in food_name for k in ["버거", "샌드위치"]):
-        return "🥪"
-    if "피자" in food_name:
-        return "🍕"
-    return "🍽️"
-
-
-def reverse_geocode_gps(lat: float, lng: float):
     try:
-        url = f"https://nominatim.openstreetmap.org/reverse?format=json&lat={lat}&lon={lng}&zoom=16&addressdetails=1"
-        headers = {"User-Agent": "LunchRouletteApp/2.0"}
-        res = requests.get(url, headers=headers, timeout=2.5)
-        data = res.json()
-        addr = data.get("address", {})
-        return (addr.get("suburb") or addr.get("village") or addr.get("town") or 
-                addr.get("borough") or addr.get("city_district") or addr.get("city") or "현재위치")
-    except Exception:
-        return "내 위치"
+        res = requests.post(url, headers=headers, json=payload, timeout=2.5)
+        if res.status_code == 200:
+            places = res.json().get("places", [])
+            if not places:
+                return default_res
 
+            p = places[0]
+            default_res["found"] = True
+            default_res["rating"] = p.get("rating")
+            default_res["user_rating_count"] = p.get("userRatingCount")
 
-def geocode_region_center(region_query: str):
-    clean_q = region_query.strip()
-    try:
-        osm_url = f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(clean_q)}&format=json&limit=1"
-        headers = {"User-Agent": "LunchRouletteApp/2.0"}
-        res = requests.get(osm_url, headers=headers, timeout=2.0)
-        data = res.json()
-        if data and len(data) > 0:
-            return float(data[0]["lat"]), float(data[0]["lon"])
+            if "primaryTypeDisplayName" in p:
+                default_res["primary_type"] = p["primaryTypeDisplayName"].get("text", "")
+
+            raw_price = p.get("priceLevel", "")
+            default_res["price_level"] = raw_price
+            price_map = {
+                "PRICE_LEVEL_INEXPENSIVE": "1만원 이하",
+                "PRICE_LEVEL_MODERATE": "1~2만원대",
+                "PRICE_LEVEL_EXPENSIVE": "2~3만원대",
+                "PRICE_LEVEL_VERY_EXPENSIVE": "3만원 이상"
+            }
+            default_res["price_level_text"] = price_map.get(raw_price, "")
+
+            parking_opts = p.get("parkingOptions", {})
+            if parking_opts.get("freeParkingLot") or parking_opts.get("freeGarageParking"):
+                default_res["parking_info"] = "무료 주차 가능"
+            elif parking_opts.get("paidParkingLot") or parking_opts.get("paidGarageParking"):
+                default_res["parking_info"] = "유료 주차 가능"
+            elif parking_opts.get("streetParking"):
+                default_res["parking_info"] = "노상 주차 가능"
+
+            hours_data = p.get("currentOpeningHours") or p.get("regularOpeningHours")
+            if hours_data:
+                default_res["open_now"] = hours_data.get("openNow")
+
+                today_idx = datetime.now().weekday()
+                today_google_day = (today_idx + 1) % 7
+
+                weekday_texts = hours_data.get("weekdayDescriptions", [])
+                if weekday_texts and today_idx < len(weekday_texts):
+                    raw_text = weekday_texts[today_idx]
+                    if ":" in raw_text:
+                        default_res["today_hours_text"] = raw_text.split(":", 1)[-1].strip()
+
+                periods = hours_data.get("periods", [])
+                today_periods = [per for per in periods if per.get("open", {}).get("day") == today_google_day]
+
+                if today_periods:
+                    is_24h = any(per.get("open", {}).get("hour") == 0 and not per.get("close") for per in today_periods)
+                    if is_24h:
+                        default_res["is_lunch_open"] = True
+                    else:
+                        earliest_open_hour = min(per.get("open", {}).get("hour", 0) for per in today_periods)
+                        latest_close_hour = max(per.get("close", {}).get("hour", 24) for per in today_periods if per.get("close"))
+
+                        if earliest_open_hour <= 13 and latest_close_hour >= 12:
+                            default_res["is_lunch_open"] = True
+                        else:
+                            default_res["is_lunch_open"] = False
+                else:
+                    default_res["is_lunch_open"] = False
+
     except Exception:
         pass
 
+    return default_res
+
+# --- 주점 배제 + 던킨 배제 + 전문점 엄격 필터링 + 가격대 검증 통합 판별기 ---
+def is_valid_specialized_restaurant(menu_name: str, place_name: str, category_name: str, g_details: dict, selected_price_code: str) -> bool:
+    clean_name = place_name.replace(" ", "").upper()
+    cat_full = category_name.replace(" ", "")
+
+    # 1. 카카오 카테고리 기반 주점/술집/유흥/도넛 원천 배제
+    if any(ex in cat_full for ex in EXCLUDED_CATEGORIES):
+        return False
+
+    # 2. 상호명 내 술집/주점/호프/던킨 키워드 원천 배제
+    if menu_name == "타코" and any(k in clean_name for k in ["타코", "TACO", "멕시칸"]):
+        if any(bad in clean_name for bad in ["노래방", "나이트클럽", "룸살롱", "단란주점", "유흥주점", "소주방", "호프"]):
+            return False
+    else:
+        if any(bad in clean_name for bad in [k.upper() for k in EXCLUDED_NAME_KEYWORDS]):
+            return False
+
+    # 3. 전/빈대떡 주막류 및 구이/정육점/야식류 배제
+    if any(jeon in clean_name for jeon in JEON_KEYWORDS):
+        return False
+    if any(c in cat_full for c in ["전,빈대떡", "빈대떡"]):
+        return False
+
+    if any(non in cat_full for non in NON_LUNCH_CATEGORIES):
+        if not (menu_name == "닭갈비" and "닭요리" in cat_full):
+            return False
+
+    if "굽자" not in place_name:
+        if "구이" in clean_name and menu_name != "생선구이":
+            return False
+        if any(bad in clean_name for bad in [k.upper() for k in MEAT_SHOP_KEYWORDS]):
+            return False
+
+    # 4. 저녁 횟집 배제
+    if menu_name not in ["초밥", "회덮밥", "생선구이"]:
+        if any(fish in clean_name for fish in EVENING_RAW_FISH_KEYWORDS):
+            return False
+
+    # 5. [전문점 엄격 필터링]: 단품 요리 시 타 업종 식당 배제
+    if menu_name in STRICT_SPECIALTY_KEYWORDS:
+        rule = STRICT_SPECIALTY_KEYWORDS[menu_name]
+        has_required = any(req.upper() in clean_name or req.upper() in cat_full for req in rule["required"])
+        if not has_required:
+            return False
+        
+        has_forbidden = any(forbid.upper() in clean_name for forbid in rule["forbidden"])
+        if has_forbidden:
+            return False
+
+    # 6. [스테이크 전용 엄격 배제]
+    if menu_name == "스테이크":
+        if any(bad in clean_name for bad in STEAK_EXCLUDED_KEYWORDS):
+            return False
+        if any(bad_cat in cat_full for bad_cat in ["도시락", "분식", "돈가스", "돈까스", "패스트푸드"]):
+            return False
+
+    # 7. [구글 플레이스 영업시간 데이터가 있는 경우]: 14시 이후 오픈 매장 배제
+    if g_details.get("found") and g_details.get("is_lunch_open") is not None:
+        if not g_details["is_lunch_open"]:
+            return False
+
+    # 8. [금액대 엄격 검증]: 구글 가격 레벨과 사용자 설정 비교
+    if selected_price_code and g_details.get("price_level"):
+        pl = g_details["price_level"]
+        if selected_price_code == "low":
+            if pl in ["PRICE_LEVEL_MODERATE", "PRICE_LEVEL_EXPENSIVE", "PRICE_LEVEL_VERY_EXPENSIVE"]:
+                return False
+        elif selected_price_code == "high":
+            if pl == "PRICE_LEVEL_INEXPENSIVE":
+                return False
+
+    return True
+
+def has_nearby_parking_kakao(lat: float, lng: float, place_name: str) -> bool:
+    if any(k in place_name for k in ["주차", "타워", "빌딩", "스퀘어", "몰", "프라자", "센터"]):
+        return True
+    
+    if not KAKAO_REST_KEY:
+        return False
+
+    url = "https://dapi.kakao.com/v2/local/search/category.json"
+    headers = {"Authorization": f"KakaoAK {KAKAO_REST_KEY}"}
+    params = {
+        "category_group_code": "PK6",
+        "x": str(lng),
+        "y": str(lat),
+        "radius": 300,
+        "size": 1
+    }
     try:
-        naver_url = f"https://m.search.naver.com/search.naver?query={urllib.parse.quote(clean_q)}"
-        headers = {
-            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15"
-        }
-        res = requests.get(naver_url, headers=headers, timeout=2.0)
-        matches = re.findall(r'"x":"([\d\.]+)","y":"([\d\.]+)"', res.text)
-        for x, y in matches:
-            lat_val, lng_val = float(y), float(x)
-            if 33.0 <= lat_val <= 39.0 and 124.0 <= lng_val <= 132.0:
-                return lat_val, lng_val
+        res = requests.get(url, headers=headers, params=params, timeout=1.0)
+        if res.status_code == 200:
+            docs = res.json().get("documents", [])
+            return len(docs) > 0
+    except Exception:
+        pass
+    return False
+
+def calculate_priority(place: dict, menu_name: str, has_parking: bool = False, need_parking: bool = False) -> float:
+    score = place["dist"]
+    p_name = place["name"]
+    is_franchise = any(p_name.strip().endswith(sfx) for sfx in ["점", "호점", "직영점"])
+    
+    place["is_personal"] = not is_franchise
+    score += (1.5 if is_franchise else -0.5)
+
+    if menu_name in p_name:
+        score -= 2.5
+
+    if need_parking:
+        score -= (3.5 if has_parking else 0.0)
+
+    return score
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def kakao_get_coordinates(query: str):
+    if not KAKAO_REST_KEY or not query.strip():
+        return None, None
+    headers = {"Authorization": f"KakaoAK {KAKAO_REST_KEY}"}
+    clean_q = query.strip()
+
+    addr_url = "https://dapi.kakao.com/v2/local/search/address.json"
+    try:
+        res = requests.get(addr_url, headers=headers, params={"query": clean_q, "size": 1}, timeout=3.0)
+        if res.status_code == 200:
+            docs = res.json().get("documents", [])
+            if docs:
+                return float(docs[0]["y"]), float(docs[0]["x"])
+    except Exception:
+        pass
+
+    kw_url = "https://dapi.kakao.com/v2/local/search/keyword.json"
+    try:
+        res = requests.get(kw_url, headers=headers, params={"query": clean_q, "size": 1}, timeout=3.0)
+        if res.status_code == 200:
+            docs = res.json().get("documents", [])
+            if docs:
+                return float(docs[0]["y"]), float(docs[0]["x"])
     except Exception:
         pass
 
     return None, None
 
+def kakao_search_places(lat: float, lng: float, menu_name: str, search_query: str, radius_km: float = 1.8, need_parking: bool = False, selected_price_code: str = None):
+    if not KAKAO_REST_KEY:
+        return []
+    url = "https://dapi.kakao.com/v2/local/search/keyword.json"
+    headers = {"Authorization": f"KakaoAK {KAKAO_REST_KEY}"}
+    radius_meters = int(radius_km * 1000)
 
-# [개선] 3중 구조의 안정적 식당 검색 함수
-def fetch_naver_places(region: str, food_keyword: str):
-    query = f"{region.strip()} {food_keyword}"
-    results = []
-    seen = set()
-    
-    headers = {
-        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7"
+    CUISINE_FALLBACK_MAP = {
+        "스테이크": ["스테이크하우스", "스테이크 레스토랑", "패밀리레스토랑"],
+        "리조또": ["이탈리안", "파스타", "양식당"],
+        "브런치": ["브런치", "양식"],
+        "타코": ["타코", "멕시칸", "멕시코요리"],
+        "부리또": ["부리또", "브리또", "멕시칸"],
+        "퀘사디아": ["멕시칸", "멕시코", "타코"],
+        "파히타": ["멕시코", "남미음식", "멕시칸"],
+        "인도커리": ["인도커리", "인도음식", "인도요리"],
+        "인도난커리": ["인도요리", "인도음식", "커리"],
+        "탄두리치킨": ["인도음식", "인도요리", "커리"],
+        "카레라이스": ["커리", "카레", "인도음식"],
+        "팟타이": ["태국음식", "아시아음식", "쌀국수"],
+        "나시고랭": ["아시아음식", "동남아", "베트남"],
+        "분짜": ["베트남음식", "쌀국수", "베트남"],
+        "반미": ["베트남", "샌드위치", "쌀국수"],
+        "똠얌꿍": ["태국음식", "아시아음식", "동남아"],
+        "사케동": ["연어덮밥", "일식덮밥", "일식당"],
+        "가츠동": ["돈부리", "일식덮밥", "일식"],
+        "텐동": ["텐동", "일식덮밥", "일식당"],
+        "일본라멘": ["라멘", "일본라멘", "일식당"],
+        "오마카세": ["스시", "초밥", "일식당"]
     }
 
-    # 1. 네이버 모바일 통합 검색 시도
-    search_url = f"https://m.search.naver.com/search.naver?query={urllib.parse.quote(query)}"
-    try:
-        res = requests.get(search_url, headers=headers, timeout=3.0)
-        html = res.text
-        
-        # 1-1. JSON 내부 좌표 & 상호명 매칭 (플레이스 모듈)
-        matches = re.findall(r'"name":"([^"]+)"[^{}]*?"x":"([\d\.]+)","y":"([\d\.]+)"', html)
-        for raw_name, x, y in matches:
-            cleaned = clean_place_name(raw_name)
-            lat_val, lng_val = float(y), float(x)
-            if any(bad in cleaned for bad in ["포차", "주점", "호프", "이자카야", "술집", "카페", "베이커리"]):
-                continue
-            if cleaned and cleaned not in seen and 33.0 <= lat_val <= 39.0 and 124.0 <= lng_val <= 132.0:
-                seen.add(cleaned)
-                results.append({"name": cleaned, "lat": lat_val, "lng": lng_val, "source": "네이버"})
-
-        # 1-2. HTML 요소 파싱 (JS 비활성화 환경 대비)
-        if len(results) < 5:
-            soup = BeautifulSoup(html, "html.parser")
-            # 플레이스 리스트 항목 추출
-            place_elements = soup.select(".place_bluelink, .O8qbU, .tit, a.name")
-            for el in place_elements:
-                p_name = clean_place_name(el.get_text(strip=True))
-                if p_name and p_name not in seen and len(p_name) > 1:
-                    if not any(bad in p_name for bad in ["더보기", "열기", "닫기", "리뷰", "블로그"]):
-                        seen.add(p_name)
-                        results.append({"name": p_name, "lat": None, "lng": None, "source": "네이버웹"})
-    except Exception:
-        pass
-
-    # 2. 결과가 3개 미만일 경우 OSM Nominatim으로 보충 검색
-    if len(results) < 5:
-        try:
-            osm_q = f"{region.strip()} {food_keyword}"
-            osm_url = f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(osm_q)}&format=json&limit=10"
-            osm_res = requests.get(osm_url, headers={"User-Agent": "LunchRouletteApp/2.0"}, timeout=2.0)
-            for item in osm_res.json():
-                osm_name = item.get("display_name", "").split(",")[0].strip()
-                if osm_name and osm_name not in seen:
-                    seen.add(osm_name)
-                    results.append({
-                        "name": osm_name,
-                        "lat": float(item["lat"]),
-                        "lng": float(item["lon"]),
-                        "source": "OSM"
-                    })
-        except Exception:
-            pass
-
-    return results
-
-
-def get_combined_places_with_gps(region: str, food_keyword: str, max_radius_km: float = 1.8, direct_coords=None):
-    if direct_coords and direct_coords[0]:
-        center_lat, center_lng = direct_coords[0], direct_coords[1]
-    else:
-        center_lat, center_lng = geocode_region_center(region)
-
-    places = fetch_naver_places(region, food_keyword)
-    
-    # 기준 좌표가 없을 경우 수집된 장소의 첫 번째 좌표로 지정
-    if not center_lat and places:
-        for p in places:
-            if p.get("lat") and p.get("lng"):
-                center_lat = p["lat"]
-                center_lng = p["lng"]
-                break
-
-    if not center_lat:
-        return [], None, None
-
-    valid_places = []
-    no_coord_places = []
-
-    for p in places:
-        if p.get("lat") and p.get("lng"):
-            dist = haversine_distance(center_lat, center_lng, p["lat"], p["lng"])
-            # 반경 1.5배 이내까지 넉넉하게 수용
-            if dist <= (max_radius_km * 1.5):
-                p["dist"] = round(dist, 2)
-                valid_places.append(p)
-        else:
-            no_coord_places.append(p)
-
-    # 좌표가 없는 장소는 중심점 주변에 자연스러운 오프셋(반경 내)을 부여하여 복구
-    offset_radius = min(max_radius_km, 1.2) * 0.007
-    for idx, p in enumerate(no_coord_places):
-        if len(valid_places) >= 12:
-            break
-        angle = (idx * 55) * (math.pi / 180)
-        dist_factor = 0.3 + (0.15 * (idx % 4))
-        p["lat"] = round(center_lat + (offset_radius * dist_factor * math.sin(angle)), 6)
-        p["lng"] = round(center_lng + (offset_radius * dist_factor * math.cos(angle)), 6)
-        p["dist"] = round(haversine_distance(center_lat, center_lng, p["lat"], p["lng"]), 2)
-        valid_places.append(p)
-
-    # 최소 10개까지 슬라이싱
-    final_candidates = valid_places[:10] if len(valid_places) >= 10 else valid_places
-    return final_candidates, center_lat, center_lng
-
-
-def get_verified_menu_and_places(region: str, candidates: list, max_radius_km: float = 1.8, direct_coords=None):
-    shuffled = candidates.copy()
-    random.shuffle(shuffled)
-
-    # 후보 메뉴들을 순회하며 가장 풍부한 검색 결과(최대 10개)를 반환하는 메뉴 선택
-    for item in shuffled[:5]:
-        menu_name, emoji = item[0], item[1]
-        places, c_lat, c_lng = get_combined_places_with_gps(region, menu_name, max_radius_km=max_radius_km, direct_coords=direct_coords)
-        if places and len(places) >= 3 and c_lat is not None:
-            return menu_name, emoji, places, c_lat, c_lng
-
-    # Fallback 음식군
-    fallback_foods = [("김치찌개", "🥘"), ("순대국", "🍲"), ("돈까스", "🍱"), ("짜장면", "🥢")]
-    for f_menu, f_emoji in fallback_foods:
-        places, c_lat, c_lng = get_combined_places_with_gps(region, f_menu, max_radius_km=max_radius_km + 0.8, direct_coords=direct_coords)
-        if places and len(places) > 0 and c_lat is not None:
-            return f_menu, f_emoji, places, c_lat, c_lng
-
-    def_lat, def_lng = geocode_region_center(region)
-    return shuffled[0][0], shuffled[0][1], [], def_lat, def_lng
-
-
-def fetch_local_dynamic_menus(region: str, allow_porridge: bool = False):
-    dynamic_menus = set()
-    headers = {
-        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15"
+    params = {
+        "query": search_query,
+        "category_group_code": "FD6",
+        "x": str(lng),
+        "y": str(lat),
+        "radius": max(200, min(radius_meters, 20000)),
+        "sort": "distance",
+        "size": 15
     }
 
-    for query_word in ["맛집", "식당"]:
-        search_q = f"{region} {query_word}"
-        url = f"https://m.search.naver.com/search.naver?query={urllib.parse.quote(search_q)}"
-        try:
-            res = requests.get(url, headers=headers, timeout=2.0)
-            soup = BeautifulSoup(res.text, "html.parser")
-            categories = soup.select(".KHM7n, .bubble, .info_category, .category")
-            for c in categories:
-                cat_name = c.get_text(strip=True).replace(",", " ").split()
-                for w in cat_name:
-                    w_clean = re.sub(r"[^가-힣]", "", w)
-                    if len(w_clean) >= 2 and w_clean not in ["음식점", "전문점", "식당", "맛집", "요리"]:
-                        if is_lunch_appropriate(w_clean, allow_porridge):
-                            dynamic_menus.add(w_clean)
-        except Exception:
-            pass
-
-    dynamic_food_list = [(menu, get_emoji_for_food(menu)) for menu in dynamic_menus if len(menu) <= 8]
-    base_pool = DEFAULT_FOODS.copy()
-    if allow_porridge:
-        base_pool.extend(SICK_EXTRA_FOODS)
-        
-    combined = {name: emoji for name, emoji in (base_pool + dynamic_food_list) if is_lunch_appropriate(name, allow_porridge)}
-    return [(name, emoji) for name, emoji in combined.items()]
-
-
-# 브라우저 GPS 파라미터 처리
-qp = st.query_params
-if "action" in qp and qp["action"] == "gps" and "lat" in qp and "lng" in qp:
     try:
-        lat_f = float(qp["lat"])
-        lng_f = float(qp["lng"])
-        if st.session_state.gps_coords != (lat_f, lng_f):
-            st.session_state.gps_coords = (lat_f, lng_f)
-            detected_name = reverse_geocode_gps(lat_f, lng_f)
-            st.session_state.region_input_val = detected_name
-            st.toast(f"현재 위치 '{detected_name}' 감지 완료!", icon="✅")
-    except Exception:
-        pass
-    del st.query_params["action"]
-    del st.query_params["lat"]
-    del st.query_params["lng"]
+        res = requests.get(url, headers=headers, params=params, timeout=3.0)
+        docs = res.json().get("documents", []) if res.status_code == 200 else []
 
+        if not docs and menu_name in CUISINE_FALLBACK_MAP:
+            for fallback_query in CUISINE_FALLBACK_MAP[menu_name]:
+                params["query"] = fallback_query
+                res = requests.get(url, headers=headers, params=params, timeout=2.5)
+                docs = res.json().get("documents", []) if res.status_code == 200 else []
+                if docs:
+                    break
 
-# --- 화면 레이아웃 ---
-st.title("🍱 오늘 점심 뭐 먹지?")
-st.caption("지역/건물명을 직접 입력하거나, '내 위치 찾기' 버튼을 눌러 주변 점심을 추천받으세요.")
-st.markdown("<div style='height: 16px;'></div>", unsafe_allow_html=True)
+        if docs:
+            candidates = []
+            for d in docs:
+                p_name = d.get("place_name", "")
+                cat_name = d.get("category_name", "")
+                p_lat = float(d.get("y"))
+                p_lng = float(d.get("x"))
 
-# 1. 위치 입력창 & 버튼
-col_input, col_gps = st.columns([3.3, 1.2])
+                g_details = fetch_google_place_details(p_name, p_lat, p_lng)
 
-with col_input:
-    region = st.text_input(
-        "📍 기준 지역 또는 건물명",
-        value=st.session_state.region_input_val,
-        placeholder="예시) 코엑스, 롯데월드타워, 역삼역, 서교동",
-        key="main_region_input"
-    )
-    if region != st.session_state.region_input_val:
-        st.session_state.gps_coords = None
+                # 복구된 주점 배제 + 던킨 배제 + 전문점 엄격 필터링 + 가격대 검증 적용
+                if not is_valid_specialized_restaurant(menu_name, p_name, cat_name, g_details, selected_price_code):
+                    continue
 
-with col_gps:
-    st.markdown(
-        """
-        <div class="gps-wrapper">
-            <div class="gps-spacer"></div>
-            <button class="gps-btn-custom" onclick="
-                if (navigator.geolocation) {
-                    navigator.geolocation.getCurrentPosition(function(pos) {
-                        const lat = pos.coords.latitude;
-                        const lng = pos.coords.longitude;
-                        const url = new URL(window.location.href);
-                        url.searchParams.set('action', 'gps');
-                        url.searchParams.set('lat', lat);
-                        url.searchParams.set('lng', lng);
-                        window.location.href = url.href;
-                    }, function(err) {
-                        alert('위치 권한을 허용해 주세요!');
-                    });
-                } else {
-                    alert('GPS를 지원하지 않는 브라우저입니다.');
+                kakao_parking = has_nearby_parking_kakao(p_lat, p_lng, p_name) if need_parking else False
+                google_parking = bool(g_details["parking_info"])
+                parking_available = google_parking or kakao_parking
+
+                clean_cat = cat_name.split(">")[-1].strip() if ">" in cat_name else cat_name
+                if g_details["primary_type"] and g_details["primary_type"] not in clean_cat:
+                    final_cat = f"{clean_cat} · {g_details['primary_type']}"
+                else:
+                    final_cat = clean_cat
+
+                dist_m = float(d.get("distance", 0))
+                p_dict = {
+                    "id": d.get("id", ""),
+                    "name": p_name,
+                    "category": final_cat,
+                    "lat": p_lat,
+                    "lng": p_lng,
+                    "dist": round(dist_m / 1000, 2) if dist_m > 0 else 0.1,
+                    "address": d.get("road_address_name") or d.get("address_name", ""),
+                    "place_url": d.get("place_url", ""),
+                    "has_parking": parking_available,
+                    "parking_desc": g_details["parking_info"] or ("인근 주차 가능" if kakao_parking else ""),
+                    "price_level": g_details["price_level_text"],
+                    "today_hours": g_details["today_hours_text"],
+                    "open_now": g_details["open_now"],
+                    "rating": g_details["rating"],
+                    "user_rating_count": g_details["user_rating_count"]
                 }
-            ">
-                내 위치 찾기
-            </button>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+                p_dict["priority_score"] = calculate_priority(p_dict, menu_name, has_parking=parking_available, need_parking=need_parking)
+                candidates.append(p_dict)
+            
+            if need_parking:
+                candidates.sort(key=lambda x: (not x["has_parking"], x["priority_score"]))
+            else:
+                candidates.sort(key=lambda x: x["priority_score"])
 
-is_gps_active = st.session_state.gps_coords is not None
-is_poi_active = is_specific_poi_or_building(region)
-radius_active = is_gps_active or is_poi_active
+            return candidates
+    except Exception:
+        pass
+    return []
 
-# 2. 탐색 반경 설정
-if radius_active:
-    st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
-    st.markdown("<h5 style='margin-bottom: 8px; font-size: 15px;'>📏 탐색 반경</h5>", unsafe_allow_html=True)
+def reset_to_selection():
+    st.session_state.saved_result = None
+    st.rerun()
 
-    c1, c2, c3, c4 = st.columns([1.0, 1.0, 1.0, 1.6], vertical_alignment="center")
+# --- 화면 상단 헤더 ---
+st.markdown("<h1 style='color: #2E1C10; font-size: 28px; font-weight: 800; margin: 0 0 10px 0; letter-spacing: -0.6px;'>🍱 오늘 점심 뭐 먹지?</h1>", unsafe_allow_html=True)
+st.markdown("<div style='color: #8C827A; font-size: 13.5px; margin-bottom: 22px; line-height: 1.5;'>고민되는 점심 메뉴와 검증된 주변 밥집을 랜덤으로 골라드립니다.</div>", unsafe_allow_html=True)
 
-    with c1:
-        btn_type = "primary" if st.session_state.selected_radius_preset == "🚶" else "secondary"
-        if st.button("🚶", key="rbtn_walk", type=btn_type, use_container_width=True):
-            st.session_state.selected_radius_preset = "🚶"
-            st.rerun()
+if not has_key:
+    st.warning("⚠️ **카카오 API 키 설정 필요**: `.streamlit/secrets.toml`에 `KAKAO_REST_KEY`를 설정해주세요.")
 
-    with c2:
-        btn_type = "primary" if st.session_state.selected_radius_preset == "🚲" else "secondary"
-        if st.button("🚲", key="rbtn_bike", type=btn_type, use_container_width=True):
-            st.session_state.selected_radius_preset = "🚲"
-            st.rerun()
-
-    with c3:
-        btn_type = "primary" if st.session_state.selected_radius_preset == "🚗" else "secondary"
-        if st.button("🚗", key="rbtn_car", type=btn_type, use_container_width=True):
-            st.session_state.selected_radius_preset = "🚗"
-            st.rerun()
-
-    with c4:
-        btn_type = "primary" if st.session_state.selected_radius_preset == "직접 입력" else "secondary"
-        if st.button("직접 입력", key="rbtn_custom", type=btn_type, use_container_width=True):
-            st.session_state.selected_radius_preset = "직접 입력"
-            st.rerun()
-
-    selected_preset = st.session_state.selected_radius_preset
-
-    if selected_preset == "직접 입력":
-        st.markdown("<div style='height: 6px;'></div>", unsafe_allow_html=True)
-        manual_radius = st.number_input(
-            "희망 반경 (단위: km)",
-            min_value=0.1,
-            max_value=10.0,
-            value=1.5,
-            step=0.1,
-            format="%.1f"
-        )
-        radius_km = float(manual_radius)
-        radius_display_text = f"직접 입력 {radius_km:.1f}km"
-        radius_result_desc = f"직접 입력 {radius_km:.1f}km 내 추천 식당입니다!"
-    else:
-        radius_km = PRESET_RADIUS[selected_preset]
-        name_map = {"🚶": "도보 700m", "🚲": "자전거 1.8km", "🚗": "차량 3.5km"}
-        radius_display_text = name_map[selected_preset]
-        desc_map = {
-            "🚶": "근거리 추천 식당입니다!",
-            "🚲": "중거리 추천 식당입니다!",
-            "🚗": "원거리 추천 식당입니다!"
-        }
-        radius_result_desc = desc_map[selected_preset]
-
-else:
-    radius_km = 2.5
-    radius_display_text = "지역 기준 추천"
-    radius_result_desc = "추천 식당입니다!"
-    if region.strip():
-        st.caption("💡 건물명/역명을 입력하거나 '내 위치 찾기'를 누르면 탐색 반경(거리)을 직접 설정할 수 있습니다.")
-
-region_warning_spot = st.empty()
-st.write("---")
-
-# 3. 탭 메뉴 영역
-tab1, tab2 = st.tabs(["🎲 완전 랜덤 룰렛", "😊 기분 맞춤 룰렛"])
-
-spin_triggered = False
-selected_candidates = []
-
-with tab1:
-    st.markdown("<div style='height: 6px;'></div>", unsafe_allow_html=True)
-    if st.button("🎲 주사위 굴리기", use_container_width=True, type="primary", key="btn_random"):
-        if not region.strip():
-            region_warning_spot.warning("⚠️ 기준 지역을 입력하거나 '내 위치 찾기'를 눌러주세요!")
-        else:
-            region_warning_spot.empty()
-            with st.spinner(f"🔍 '{region}' ({radius_display_text}) 식당들을 확인하고 있습니다..."):
-                selected_candidates = fetch_local_dynamic_menus(region, allow_porridge=False)
-            spin_triggered = True
-
-with tab2:
-    selected_mood = None
-
-    st.markdown("<h5 style='margin: 8px 0 6px 0; font-size: 15px;'>😊 오늘의 기분</h5>", unsafe_allow_html=True)
-    col_m1, col_m2 = st.columns(2)
-    mood_group = ["🥳 기분좋음", "🤯 스트레스", "🫠 입맛없음", "😴 피곤·보양"]
-    with col_m1:
-        for k in mood_group[:2]:
-            info = MOOD_DATA[k]
-            if st.button(f"{k}\n\n({info['desc']})", use_container_width=True, key=f"btn_{k}"):
-                selected_mood = k
-    with col_m2:
-        for k in mood_group[2:]:
-            info = MOOD_DATA[k]
-            if st.button(f"{k}\n\n({info['desc']})", use_container_width=True, key=f"btn_{k}"):
-                selected_mood = k
-
-    st.markdown("<h5 style='margin: 18px 0 6px 0; font-size: 15px;'>⛅ 날씨 맞춤</h5>", unsafe_allow_html=True)
-    col_w1, col_w2 = st.columns(2)
-    weather_group = ["☀️ 날씨 좋음", "☔ 흐림·비"]
-    with col_w1:
-        k = weather_group[0]
-        if st.button(f"{k}\n\n({MOOD_DATA[k]['desc']})", use_container_width=True, key=f"btn_{k}"):
-            selected_mood = k
-    with col_w2:
-        k = weather_group[1]
-        if st.button(f"{k}\n\n({MOOD_DATA[k]['desc']})", use_container_width=True, key=f"btn_{k}"):
-            selected_mood = k
-
-    st.markdown("<h5 style='margin: 18px 0 6px 0; font-size: 15px;'>🩹 속 편한 케어 & 해장</h5>", unsafe_allow_html=True)
-    col_c1, col_c2 = st.columns(2)
-    care_group = ["🤢 속 안 좋음", "😵‍💫 해장 시급"]
-    with col_c1:
-        k = care_group[0]
-        if st.button(f"{k}\n\n({MOOD_DATA[k]['desc']})", use_container_width=True, key=f"btn_{k}"):
-            selected_mood = k
-    with col_c2:
-        k = care_group[1]
-        if st.button(f"{k}\n\n({MOOD_DATA[k]['desc']})", use_container_width=True, key=f"btn_{k}"):
-            selected_mood = k
-
-    if selected_mood:
-        if not region.strip():
-            region_warning_spot.warning("⚠ 기준 지역을 입력하거나 '내 위치 찾기'를 눌러주세요!")
-        else:
-            region_warning_spot.empty()
-            with st.spinner(f"🔍 '{region}' ({radius_display_text}) [{selected_mood}] 메뉴 탐색 중..."):
-                is_sick = (selected_mood == "🤢 속 안 좋음")
-                all_local = fetch_local_dynamic_menus(region, allow_porridge=is_sick)
-                keywords = MOOD_DATA[selected_mood]["keywords"]
-                filtered = [f for f in all_local if any(kw in f[0] for kw in keywords)]
-                selected_candidates = filtered if len(filtered) >= 4 else all_local
-            spin_triggered = True
-
-card_spot = st.empty()
-detail_spot = st.empty()
-
-# 4. 룰렛 실행 및 애니메이션
-if spin_triggered and selected_candidates:
-    st.session_state.spin_count += 1
-    region_warning_spot.empty()
-    detail_spot.empty()
-
-    final_menu, final_emoji, places, c_lat, c_lng = get_verified_menu_and_places(
-        region, selected_candidates, max_radius_km=radius_km, direct_coords=st.session_state.gps_coords
-    )
-
-    steps = 14
-    for i in range(steps):
-        temp_item = random.choice(selected_candidates)
-        card_spot.markdown(
-            f"""
-            <div style="text-align: center; margin-top: 30px; margin-bottom: 30px; padding: 20px; 
-                        background: #FFF9E6; border-radius: 20px; border: 4px solid #FF9800; 
-                        box-shadow: 0 4px 15px rgba(255, 152, 0, 0.2);">
-                <div style="font-size: 70px; margin-bottom: 4px;">{temp_item[1]}</div>
-                <h2 style="color: #FF5722; margin: 4px 0 6px 0; font-size: 26px;">{temp_item[0]}</h2>
-                <p style="color: #999; font-size: 13px; margin: 0;">{radius_display_text} 기준 맛집 찾는 중... 🎲</p>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-        time.sleep(0.03 + (i * 0.012))
-
-    card_spot.markdown(
-        f"""
-        <div style="text-align: center; margin-top: 30px; margin-bottom: 30px; padding: 22px; 
-                    background: #FFF9E6; border-radius: 20px; border: 4px solid #E65100; 
-                    box-shadow: 0 4px 18px rgba(230, 81, 0, 0.25);">
-            <div style="font-size: 75px; margin-bottom: 4px;">{final_emoji}</div>
-            <h1 style="color: #E65100; margin: 4px 0 6px 0; font-size: 30px;">🎉 {final_menu} 당첨! 🎉</h1>
-            <p style="color: #795548; font-size: 14px; font-weight: bold; margin: 0;">'{region}' {radius_result_desc}</p>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    st.session_state.saved_result = {
-        "menu": final_menu,
-        "emoji": final_emoji,
-        "places": places,
-        "region": region,
-        "radius_km": radius_km,
-        "radius_text": radius_display_text,
-        "radius_desc": radius_result_desc,
-        "center_lat": c_lat,
-        "center_lng": c_lng,
-        "id": st.session_state.spin_count
-    }
-
-# 5. 결과 화면 표시 (지도 및 식당)
+# ============================================================
+# [뷰 분기 1]: 룰렛 결과 화면
+# ============================================================
 res = st.session_state.saved_result
-if res is not None:
-    result_desc = res.get("radius_desc", f"반경 {res.get('radius_km', 1.8)}km 내 추천 식당입니다!")
-    card_spot.markdown(
-        f"""
-        <div style="text-align: center; margin-top: 30px; margin-bottom: 30px; padding: 22px; 
-                    background: #FFF9E6; border-radius: 20px; border: 4px solid #E65100; 
-                    box-shadow: 0 4px 18px rgba(230, 81, 0, 0.25);">
-            <div style="font-size: 75px; margin-bottom: 4px;">{res['emoji']}</div>
-            <h1 style="color: #E65100; margin: 4px 0 6px 0; font-size: 30px;">🎉 {res['menu']} 당첨! 🎉</h1>
-            <p style="color: #795548; font-size: 14px; font-weight: bold; margin: 0;">'{res['region']}' {result_desc}</p>
-        </div>
-        """,
-        unsafe_allow_html=True
+
+if res is not None and res.get("places"):
+    card_html = (
+        f'<div class="fade-in-content" style="text-align: center; margin: 14px 0 14px 0; padding: 24px 20px; '
+        f'background: #FFFDF9; border-radius: 22px; border: 1.5px solid #F5D5B8; '
+        f'box-shadow: 0 4px 18px rgba(245, 213, 184, 0.35);">'
+        f'<div style="font-size: 68px; line-height: 1; margin-bottom: 8px;">{res["emoji"]}</div>'
+        f'<div style="display: flex; justify-content: center; align-items: center; gap: 8px; width: 100%; margin: 4px 0;">'
+        f'<span style="font-size: 22px;">🎉</span>'
+        f'<span style="color: #2E1C10; font-size: 26px; font-weight: 800; letter-spacing: -0.5px;">{res["menu"]} 당첨!</span>'
+        f'<span style="font-size: 22px;">🎉</span>'
+        f'</div>'
+        f'<div style="color: #7A6F66; font-size: 13px; font-weight: 500; margin-top: 4px;">'
+        f'점심 메뉴 추천 결과 ({res["radius_text"]})'
+        f'</div>'
+        f'</div>'
     )
+    st.markdown(card_html, unsafe_allow_html=True)
 
-    with detail_spot.container():
-        places = res["places"]
+    places = res["places"]
+    top_pick = places[0]
 
-        if places:
-            st.markdown(
-                f"""
-                <div style="margin-bottom: 12px; padding: 12px 16px; 
-                            background-color: #F1F8E9; border-left: 5px solid #2E7D32; border-radius: 6px;">
-                    <span style="font-size: 15px; color: #2E7D32; font-weight: bold;">🏬 오늘의 추천 1픽 맛집: </span>
-                    <span style="font-size: 16px; color: #1B5E20; font-weight: 800;">{places[0]['name']}</span>
+    tag_text = "개인 전문점" if top_pick.get("is_personal", True) else "프랜차이즈"
+    tag_bg = "#FCEFE6" if top_pick.get("is_personal", True) else "#F7E6D2"
+    tag_color = "#C85A32" if top_pick.get("is_personal", True) else "#8A532B"
+
+    badges = []
+    if top_pick.get("open_now") is True:
+        badges.append('<span style="font-size: 11px; background: #E8F4EA; color: #2E7D32; padding: 2px 7px; border-radius: 6px; font-weight: 700;">🟢 지금 영업중</span>')
+    elif top_pick.get("open_now") is False:
+        badges.append('<span style="font-size: 11px; background: #FDE8E8; color: #C5221F; padding: 2px 7px; border-radius: 6px; font-weight: 700;">🔴 영업 준비중</span>')
+
+    if top_pick.get("has_parking", False):
+        p_desc = top_pick.get("parking_desc") or "주차 편리"
+        badges.append(f'<span style="font-size: 11px; background: #E8F0FE; color: #1A73E8; padding: 2px 7px; border-radius: 6px; font-weight: 700;">🅿️ {p_desc}</span>')
+
+    if top_pick.get("price_level"):
+        badges.append(f'<span style="font-size: 11px; background: #FEF7E0; color: #B06000; padding: 2px 7px; border-radius: 6px; font-weight: 600;">💵 {top_pick["price_level"]}</span>')
+
+    if top_pick.get("rating"):
+        badges.append(f'<span style="font-size: 11px; background: #FFF0EB; color: #E86A3E; padding: 2px 7px; border-radius: 6px; font-weight: 700;">⭐ {top_pick["rating"]} ({top_pick["user_rating_count"]})</span>')
+
+    badges_html = " ".join(badges)
+
+    hours_line = ""
+    if top_pick.get("today_hours"):
+        hours_line = f'<div style="font-size: 12.5px; color: #5D534A; margin-top: 5px;">🕒 오늘 운영: <b>{top_pick["today_hours"]}</b></div>'
+
+    top_pick_html = (
+        f'<div class="fade-in-content" style="margin-bottom: 20px; padding: 22px 18px; '
+        f'background: #FFFDF9; border-radius: 22px; border: 1.5px solid #F5D5B8; '
+        f'box-shadow: 0 4px 18px rgba(245, 213, 184, 0.35); text-align: center;">'
+        f'<div style="display: flex; justify-content: center; align-items: center; gap: 6px; margin-bottom: 8px; flex-wrap: wrap;">'
+        f'<span style="font-size: 12.5px; color: #E86A3E; font-weight: 700;">⭐ 오늘의 1픽 추천 밥집</span>'
+        f'<span style="font-size: 11px; background: {tag_bg}; color: {tag_color}; padding: 2px 7px; border-radius: 6px; font-weight: 700;">{tag_text}</span>'
+        f'<span style="font-size: 11px; background: #F3ECE4; color: #6E5F55; padding: 2px 7px; border-radius: 6px; font-weight: 600;">{top_pick.get("category", "식당")}</span>'
+        f'{badges_html}'
+        f'</div>'
+        f'<div style="margin: 4px 0;">'
+        f'<a href="{top_pick.get("place_url", "#")}" target="_blank" style="text-decoration: none; color: #2E1C10; font-size: 23px; font-weight: 900; display: inline-block;">'
+        f'{top_pick["name"]}'
+        f'</a>'
+        f'</div>'
+        f'{hours_line}'
+        f'<div style="font-size: 13px; color: #7A6F66; margin-top: 5px;">'
+        f'📍 {top_pick["address"]} (약 {top_pick["dist"]}km)'
+        f'</div>'
+        f'</div>'
+    )
+    st.markdown(top_pick_html, unsafe_allow_html=True)
+
+    if len(places) > 1:
+        st.markdown(f"<div class='fade-in-content' style='font-size: 14.5px; font-weight: 700; color: #2E1C10; margin-bottom: 8px;'>📋 근처 다른 후보 ({len(places)-1}곳)</div>", unsafe_allow_html=True)
+        other_candidates = places[1:11]
+        col_left, col_right = st.columns(2)
+
+        for idx, p in enumerate(other_candidates, start=1):
+            p_tag = "개인" if p.get("is_personal", True) else "체인"
+            short_cat = p.get('category', '식당').split('/')[-1].split('·')[0].strip()
+            target_col = col_left if idx % 2 != 0 else col_right
+
+            with target_col:
+                cand_html = (
+                    f'<div class="fade-in-content" style="display: flex; justify-content: space-between; align-items: center; '
+                    f'background: #FFFFFF; border: 1px solid #ECE7E1; border-radius: 12px; '
+                    f'padding: 9px 12px; margin-bottom: 8px;">'
+                    f'<div style="display: flex; align-items: center; gap: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">'
+                    f'<span style="display: inline-flex; justify-content: center; align-items: center; width: 18px; height: 18px; background: #F3EFEA; color: #555; border-radius: 5px; font-size: 11px; font-weight: 700;">{idx}</span>'
+                    f'<a href="{p.get("place_url", "#")}" target="_blank" style="text-decoration: none; color: #111; font-size: 13px; font-weight: 700; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{p["name"]}</a>'
+                    f'<span style="font-size: 10px; background: #F7F5F2; color: #777; padding: 2px 5px; border-radius: 4px;">{p_tag}·{short_cat}</span>'
+                    f'</div>'
+                    f'<div style="font-size: 11.5px; color: #666; font-weight: 500; margin-left: 6px; white-space: nowrap;">{p["dist"]}km</div>'
+                    f'</div>'
+                )
+                st.markdown(cand_html, unsafe_allow_html=True)
+
+    st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
+    # 접힌 파란색 지도 단일 이모티콘으로 변경
+    st.markdown("<div class='section-title'>🗺 식당 위치 지도</div>", unsafe_allow_html=True)
+    st.caption("🔴 빨간 핀: 1픽 매장 / 🔵 파란 핀: 주변 후보")
+
+    m = folium.Map(location=[top_pick["lat"], top_pick["lng"]], zoom_start=15, control_scale=True)
+    folium.Marker(
+        location=[top_pick["lat"], top_pick["lng"]],
+        popup=folium.Popup(f"<b>⭐ {top_pick['name']}</b><br>{top_pick['address']}<br><a href='{top_pick['place_url']}' target='_blank'>카카오맵 열기</a>", max_width=250),
+        tooltip=f"⭐ 1픽: {top_pick['name']}",
+        icon=folium.Icon(color="red", icon="star", prefix="fa")
+    ).add_to(m)
+
+    for idx, p in enumerate(places[1:10], start=2):
+        folium.Marker(
+            location=[p["lat"], p["lng"]],
+            popup=folium.Popup(f"<b>{idx}. {p['name']}</b><br>{p['address']}<br><a href='{p['place_url']}' target='_blank'>카카오맵 열기</a>", max_width=250),
+            tooltip=f"{idx}. {p['name']}",
+            icon=folium.Icon(color="blue", icon="cutlery", prefix="fa")
+        ).add_to(m)
+
+    unique_map_key = f"map_{res['id']}_{int(top_pick['lat'] * 10000)}"
+    st_folium(m, width="100%", height=380, key=unique_map_key, returned_objects=[])
+
+    kakao_directions_url = f"https://map.kakao.com/link/to/{urllib.parse.quote(top_pick['name'])},{top_pick['lat']},{top_pick['lng']}"
+    st.link_button(f"🧭 '{top_pick['name']}' 길찾기 바로가기", kakao_directions_url, use_container_width=True)
+
+    if st.button("🔄 다시 뽑기", use_container_width=True, key="btn_reset_bottom"):
+        reset_to_selection()
+
+# ============================================================
+# [뷰 분기 2]: 선택 옵션 박스 및 룰렛 실행 루프
+# ============================================================
+else:
+    main_view = st.empty()
+
+    with main_view.container():
+        # --- 1. 위치 입력 ---
+        with st.container(border=True):
+            st.markdown("<div class='section-title'>📍 위치</div>", unsafe_allow_html=True)
+            col_input, col_gps = st.columns([3.5, 1.2], vertical_alignment="center")
+
+            with col_input:
+                region = st.text_input(
+                    "위치입력",
+                    value=st.session_state.region_input_val,
+                    placeholder="예시) 테헤란로 152, 역삼동 737, 홍대입구역",
+                    key="main_region_input",
+                    label_visibility="collapsed"
+                )
+                if region != st.session_state.region_input_val:
+                    st.session_state.region_input_val = region
+                    st.session_state.gps_coords = None
+
+            with col_gps:
+                st.markdown(
+                    """
+                    <button onclick="
+                        if (navigator.geolocation) {
+                            navigator.geolocation.getCurrentPosition(function(pos) {
+                                const url = new URL(window.location.href);
+                                url.searchParams.set('action', 'gps');
+                                url.searchParams.set('lat', pos.coords.latitude);
+                                url.searchParams.set('lng', pos.coords.longitude);
+                                window.location.href = url.href;
+                            }, function(err) {
+                                alert('위치 권한을 허용해 주세요!');
+                            });
+                        } else {
+                            alert('GPS를 지원하지 않는 브라우저입니다.');
+                        }
+                    " style="width:100%; height:42px; background-color:#E86A3E; color:white; border:none; border-radius:12px; font-size:13px; font-weight:700; cursor:pointer; box-shadow: 0 2px 8px rgba(232, 106, 62, 0.2);">
+                        내 위치 찾기
+                    </button>
+                    """,
+                    unsafe_allow_html=True
+                )
+
+        # --- 2. 탐색 반경 ---
+        clean_region = region.strip()
+        is_admin_region = False
+
+        if clean_region:
+            is_spot = bool(re.search(r"(역|출구|거리|센터|스퀘어|타워|빌딩|공원|마트|백화점)$", clean_region))
+            is_pure_admin = bool(re.search(r"([시군구읍면동]|\b\w+[0-9]*가)$", clean_region))
+            if is_pure_admin and not is_spot:
+                is_admin_region = True
+
+        should_show_radius = bool(clean_region and not is_admin_region)
+
+        if should_show_radius:
+            with st.container(border=True):
+                st.markdown("<div class='section-title'>📏 탐색 반경</div>", unsafe_allow_html=True)
+                
+                c1, c2, c3, c4 = st.columns(4, vertical_alignment="center")
+                current_preset = st.session_state.selected_radius_preset
+
+                with c1:
+                    if st.button("🚶 인근", key="rbtn_walk", type="primary" if current_preset == "인근" else "secondary", use_container_width=True):
+                        if st.session_state.selected_radius_preset != "인근":
+                            st.session_state.selected_radius_preset = "인근"
+                            st.rerun()
+
+                with c2:
+                    if st.button("🚲 근거리", key="rbtn_bike", type="primary" if current_preset == "근거리" else "secondary", use_container_width=True):
+                        if st.session_state.selected_radius_preset != "근거리":
+                            st.session_state.selected_radius_preset = "근거리"
+                            st.rerun()
+
+                with c3:
+                    if st.button("🚗 원거리", key="rbtn_car", type="primary" if current_preset == "원거리" else "secondary", use_container_width=True):
+                        if st.session_state.selected_radius_preset != "원거리":
+                            st.session_state.selected_radius_preset = "원거리"
+                            st.rerun()
+
+                with c4:
+                    if st.button("직접 입력", key="rbtn_custom", type="primary" if current_preset == "직접 입력" else "secondary", use_container_width=True):
+                        if st.session_state.selected_radius_preset != "직접 입력":
+                            st.session_state.selected_radius_preset = "직접 입력"
+                            st.rerun()
+
+                if st.session_state.selected_radius_preset == "직접 입력":
+                    st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
+                    manual_radius = st.number_input(
+                        "희망 반경 (단위: km)", 
+                        min_value=0.2, 
+                        max_value=10.0, 
+                        value=st.session_state.custom_radius_val, 
+                        step=0.2, 
+                        key="custom_radius_num",
+                        label_visibility="collapsed"
+                    )
+                    if manual_radius != st.session_state.custom_radius_val:
+                        st.session_state.custom_radius_val = manual_radius
+                    radius_km = float(manual_radius)
+                    radius_display_text = f"직접 입력 {radius_km:.1f}km"
+                else:
+                    radius_km = PRESET_RADIUS.get(st.session_state.selected_radius_preset, 1.8)
+                    radius_display_text = f"{st.session_state.selected_radius_preset} ({radius_km}km)"
+        else:
+            radius_km = 1.8
+            radius_display_text = "지역 인근"
+
+        # --- 3. 음식 종류 선택 (단일 이모티콘 🍴 적용) ---
+        with st.container(border=True):
+            st.markdown("<div class='section-title'>🍴 음식 종류</div>", unsafe_allow_html=True)
+
+            cu1, cu2, cu3, cu4 = st.columns(4)
+            current_cuisine = st.session_state.selected_cuisine
+
+            with cu1:
+                if st.button("한식", key="cbtn_korean", type="primary" if current_cuisine == "한식" else "secondary", use_container_width=True):
+                    if st.session_state.selected_cuisine != "한식":
+                        st.session_state.selected_cuisine = "한식"
+                        st.rerun()
+            with cu2:
+                if st.button("중식", key="cbtn_chinese", type="primary" if current_cuisine == "중식" else "secondary", use_container_width=True):
+                    if st.session_state.selected_cuisine != "중식":
+                        st.session_state.selected_cuisine = "중식"
+                        st.rerun()
+            with cu3:
+                if st.button("일식", key="cbtn_japanese", type="primary" if current_cuisine == "일식" else "secondary", use_container_width=True):
+                    if st.session_state.selected_cuisine != "일식":
+                        st.session_state.selected_cuisine = "일식"
+                        st.rerun()
+            with cu4:
+                if st.button("양식", key="cbtn_western", type="primary" if current_cuisine == "양식" else "secondary", use_container_width=True):
+                    if st.session_state.selected_cuisine != "양식":
+                        st.session_state.selected_cuisine = "양식"
+                        st.rerun()
+
+            cu5, cu6, cu7, cu8 = st.columns(4)
+            with cu5:
+                if st.button("동남아식", key="cbtn_asian", type="primary" if current_cuisine == "동남아식" else "secondary", use_container_width=True):
+                    if st.session_state.selected_cuisine != "동남아식":
+                        st.session_state.selected_cuisine = "동남아식"
+                        st.rerun()
+            with cu6:
+                if st.button("인도식", key="cbtn_indian", type="primary" if current_cuisine == "인도식" else "secondary", use_container_width=True):
+                    if st.session_state.selected_cuisine != "인도식":
+                        st.session_state.selected_cuisine = "인도식"
+                        st.rerun()
+            with cu7:
+                if st.button("멕시코식", key="cbtn_mexican", type="primary" if current_cuisine == "멕시코식" else "secondary", use_container_width=True):
+                    if st.session_state.selected_cuisine != "멕시코식":
+                        st.session_state.selected_cuisine = "멕시코식"
+                        st.rerun()
+            with cu8:
+                if st.button("상관없음", key="cbtn_any", type="primary" if current_cuisine == "상관없음" else "secondary", use_container_width=True):
+                    if st.session_state.selected_cuisine != "상관없음":
+                        st.session_state.selected_cuisine = "상관없음"
+                        st.rerun()
+
+        # --- 4. 음식 가격 선택 ---
+        with st.container(border=True):
+            st.markdown("<div class='section-title'>💵 음식 가격(식사 기준)</div>", unsafe_allow_html=True)
+
+            p1, p2, p3, p4 = st.columns(4)
+            current_price = st.session_state.selected_price
+
+            with p1:
+                if st.button("1만원 이하", key="pbtn_low", type="primary" if current_price == "1만원 이하" else "secondary", use_container_width=True):
+                    if st.session_state.selected_price != "1만원 이하":
+                        st.session_state.selected_price = "1만원 이하"
+                        st.rerun()
+            with p2:
+                if st.button("1~2만원", key="pbtn_mid", type="primary" if current_price == "1~2만원" else "secondary", use_container_width=True):
+                    if st.session_state.selected_price != "1~2만원":
+                        st.session_state.selected_price = "1~2만원"
+                        st.rerun()
+            with p3:
+                if st.button("2만원 이상", key="pbtn_high", type="primary" if current_price == "2만원 이상" else "secondary", use_container_width=True):
+                    if st.session_state.selected_price != "2만원 이상":
+                        st.session_state.selected_price = "2만원 이상"
+                        st.rerun()
+            with p4:
+                if st.button("상관없음", key="pbtn_any", type="primary" if current_price == "상관없음" else "secondary", use_container_width=True):
+                    if st.session_state.selected_price != "상관없음":
+                        st.session_state.selected_price = "상관없음"
+                        st.rerun()
+
+        # --- 5. 주차 가능 여부 선택 ---
+        with st.container(border=True):
+            st.markdown("<div class='section-title'>🅿️ 주차 가능 여부</div>", unsafe_allow_html=True)
+            pk1, pk2 = st.columns(2)
+            current_parking = st.session_state.selected_parking
+
+            with pk1:
+                if st.button("식당 주차장 혹은 인근 주차장 있음", key="pkbtn_yes", type="primary" if current_parking == "식당 주차장 혹은 인근 주차장 있음" else "secondary", use_container_width=True):
+                    if st.session_state.selected_parking != "식당 주차장 혹은 인근 주차장 있음":
+                        st.session_state.selected_parking = "식당 주차장 혹은 인근 주차장 있음"
+                        st.rerun()
+            with pk2:
+                if st.button("주차 불필요", key="pkbtn_any", type="primary" if current_parking == "주차 불필요" else "secondary", use_container_width=True):
+                    if st.session_state.selected_parking != "주차 불필요":
+                        st.session_state.selected_parking = "주차 불필요"
+                        st.rerun()
+
+        region_warning_spot = st.empty()
+
+        def show_location_warning():
+            region_warning_spot.markdown(
+                """
+                <div class="warning-box">
+                    <span style="font-size: 16px;">⚠️</span>
+                    <span style="color: #6C4D0A; font-size: 13.5px; font-weight: 700;">
+                        위치를 입력하거나 '내 위치 찾기'를 눌러주세요!
+                    </span>
                 </div>
                 """,
                 unsafe_allow_html=True
             )
-            # 최대 9개 후보 매장 나열 (총합 최대 10개)
-            if len(places) > 1:
-                candidate_names = [f"<b>{i+1}.</b> {p['name']}" for i, p in enumerate(places[1:10])]
-                st.markdown(
-                    f"<div style='font-size: 13.5px; color: #444; line-height: 1.6; margin-bottom: 20px;'>"
-                    f"<b>근처 다른 추천 후보 ({len(places)-1}곳):</b><br/>"
-                    f"{' &nbsp;·&nbsp; '.join(candidate_names)}"
-                    f"</div>",
-                    unsafe_allow_html=True
-                )
 
-            st.markdown("<h3 style='margin-bottom: 4px;'>🗺️ 추천 식당 위치 지도</h3>", unsafe_allow_html=True)
-            st.caption("⭐ 빨간 핀: 오늘의 1픽 추천 식당 / 🔵 파란 핀: 주변 후보 식당 (최대 10개 표시)")
-            st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
-
-            target_lat = places[0]["lat"]
-            target_lng = places[0]["lng"]
-
-            r_val = res.get("radius_km", 1.8)
-            zoom_val = 16 if r_val <= 1.0 else (15 if r_val <= 2.5 else 14)
-
-            m = folium.Map(location=[target_lat, target_lng], zoom_start=zoom_val, control_scale=True)
-
-            main_popup_html = f"""
-            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
-                        padding: 6px 10px; min-width: 170px; text-align: center; white-space: nowrap;">
-                <span style="background: #E65100; color: white; padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: bold;">
-                    ⭐ 오늘의 1픽
-                </span>
-                <div style="margin-top: 6px; font-size: 14px; font-weight: bold; color: #222;">
-                    {places[0]['name']}
-                </div>
-            </div>
-            """
-            folium.Marker(
-                location=[target_lat, target_lng],
-                popup=folium.Popup(main_popup_html, max_width=300),
-                tooltip=f"⭐ 추천: {places[0]['name']}",
-                icon=folium.Icon(color="red", icon="star", prefix="fa")
-            ).add_to(m)
-
-            for idx, p in enumerate(places[1:10], start=2):
-                sub_popup_html = f"""
-                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
-                            padding: 5px 8px; min-width: 150px; text-align: center; white-space: nowrap;">
-                    <span style="background: #1976D2; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold;">
-                        후보 {idx}
-                    </span>
-                    <div style="margin-top: 5px; font-size: 13px; font-weight: bold; color: #333;">
-                        {p['name']}
-                    </div>
-                </div>
+        def show_cuisine_warning():
+            region_warning_spot.markdown(
                 """
-                folium.Marker(
-                    location=[p["lat"], p["lng"]],
-                    popup=folium.Popup(sub_popup_html, max_width=260),
-                    tooltip=f"{idx}. {p['name']}",
-                    icon=folium.Icon(color="blue", icon="cutlery", prefix="fa")
-                ).add_to(m)
-
-            unique_map_key = f"map_view_{res['id']}_{int(target_lat * 10000)}_{int(target_lng * 10000)}"
-            st_folium(
-                m,
-                width="100%",
-                height=430,
-                key=unique_map_key,
-                returned_objects=[]
+                <div class="warning-box">
+                    <span style="font-size: 16px;">⚠️</span>
+                    <span style="color: #6C4D0A; font-size: 13.5px; font-weight: 700;">
+                        음식 종류를 선택해 주세요!
+                    </span>
+                </div>
+                """,
+                unsafe_allow_html=True
             )
 
-        else:
-            st.info("식당 정보를 불러오는 중입니다. 아래 링크에서 전체 매장을 바로 확인해 보세요!")
+        def show_location_not_found_warning(target_region: str):
+            region_warning_spot.markdown(
+                f"""
+                <div class="warning-box">
+                    <span style="font-size: 16px;">⚠️</span>
+                    <span style="color: #6C4D0A; font-size: 13.5px; font-weight: 700;">
+                        '{target_region}' 위치를 찾지 못했습니다. 도로명/지번 주소 또는 주요 건물·역 이름을 확인해 주세요!
+                    </span>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
-        st.markdown("<div style='height: 16px;'></div>", unsafe_allow_html=True)
-        col_link1, col_link2 = st.columns(2)
-        with col_link1:
-            naver_map_url = f"https://map.naver.com/v5/search/{urllib.parse.quote(res['region'] + ' ' + res['menu'])}"
-            st.link_button("🗺️ 네이버 지도에서 길찾기", naver_map_url, use_container_width=True)
-        with col_link2:
-            kakao_map_url = f"https://map.kakao.com/link/search/{urllib.parse.quote(res['region'] + ' ' + res['menu'])}"
-            st.link_button("🗺️ 카카오 맵에서 길찾기", kakao_map_url, use_container_width=True)
+        # --- 6. 메인 룰렛 버튼 ---
+        spin_clicked = st.button("🎲 오늘 점심 랜덤 룰렛 돌리기!", use_container_width=True, type="primary", key="btn_trigger_random")
+
+    # 버튼 클릭 시 즉시 롤링 및 결과 표출 파이프라인
+    if spin_clicked:
+        if not region.strip() and not st.session_state.gps_coords:
+            show_location_warning()
+        elif not st.session_state.selected_cuisine:
+            show_cuisine_warning()
+        else:
+            if st.session_state.gps_coords:
+                c_lat, c_lng = st.session_state.gps_coords
+            else:
+                c_lat, c_lng = kakao_get_coordinates(region)
+
+            if not c_lat:
+                show_location_not_found_warning(region)
+            else:
+                region_warning_spot.empty()
+
+                cu = st.session_state.selected_cuisine
+                pr = st.session_state.selected_price
+                price_map = {"1만원 이하": "low", "1~2만원": "mid", "2만원 이상": "high"}
+                target_pr = price_map.get(pr, None)
+
+                # 카테고리 필터링
+                if cu == "상관없음":
+                    candidates_pool = [f for f in DEFAULT_FOODS if f[0] != "죽"]
+                else:
+                    candidates_pool = [f for f in DEFAULT_FOODS if f[3] == cu and f[0] != "죽"]
+
+                if not candidates_pool:
+                    candidates_pool = [f for f in DEFAULT_FOODS if f[0] != "죽"]
+
+                # 가격대 필터링 엄격 준수
+                if target_pr:
+                    selected_candidates = [f for f in candidates_pool if f[4] == target_pr]
+                    if not selected_candidates:
+                        selected_candidates = candidates_pool
+                else:
+                    selected_candidates = candidates_pool
+
+                if not selected_candidates:
+                    selected_candidates = [f for f in DEFAULT_FOODS if f[0] != "죽"]
+
+                main_view.empty()
+                rolling_spot = main_view.empty()
+
+                shuffled = selected_candidates.copy()
+                random.shuffle(shuffled)
+                need_parking_flag = (st.session_state.selected_parking == "식당 주차장 혹은 인근 주차장 있음")
+
+                # 롤링 애니메이션 전반부
+                for i in range(5):
+                    temp = random.choice(selected_candidates)
+                    rolling_spot.markdown(
+                        f"""
+                        <div class="fade-in-content" style="text-align: center; margin: 14px 0 14px 0; padding: 22px 18px; 
+                                    background: #FFFDF9; border-radius: 20px; border: 1.5px solid #F5D5B8; 
+                                    box-shadow: 0 4px 16px rgba(245, 213, 184, 0.35);">
+                            <div style="font-size: 58px; line-height: 1; margin-bottom: 6px;">{temp[1]}</div>
+                            <div style="color: #2E1C10; font-size: 23px; font-weight: 800; margin: 4px 0;">{temp[0]}</div>
+                            <p style="color: #8C827A; font-size: 13px; margin: 0;">{radius_display_text} 기준 맛집 추첨 중... 🎲</p>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+                    time.sleep(0.06)
+
+                # 복구된 주점 배제 + 던킨 배제 + 전문점 엄격 필터링 + 가격대 검증 적용 탐색
+                final_menu = None
+                places = []
+                for m_name, m_emoji, m_kw, _, _ in shuffled[:6]:
+                    found = kakao_search_places(
+                        c_lat, c_lng, m_name, m_kw,
+                        radius_km=radius_km,
+                        need_parking=need_parking_flag,
+                        selected_price_code=target_pr
+                    )
+                    if found:
+                        final_menu = (m_name, m_emoji)
+                        places = found
+                        break
+
+                if not places:
+                    fallback_kw = "백반" if cu in ["한식", "상관없음"] else f"{cu} 전문점"
+                    fallback_menu = "백반·가정식" if cu in ["한식", "상관없음"] else f"{cu} 밥집"
+                    fallback_found = kakao_search_places(
+                        c_lat, c_lng, fallback_menu, fallback_kw,
+                        radius_km=radius_km,
+                        need_parking=need_parking_flag,
+                        selected_price_code=target_pr
+                    )
+                    if fallback_found:
+                        final_menu = (fallback_menu, "🍱")
+                        places = fallback_found
+
+                # 롤링 애니메이션 후반부
+                for i in range(4):
+                    temp = random.choice(selected_candidates)
+                    rolling_spot.markdown(
+                        f"""
+                        <div style="text-align: center; margin: 14px 0 14px 0; padding: 22px 18px; 
+                                    background: #FFFDF9; border-radius: 20px; border: 1.5px solid #F5D5B8; 
+                                    box-shadow: 0 4px 16px rgba(245, 213, 184, 0.35);">
+                            <div style="font-size: 58px; line-height: 1; margin-bottom: 6px;">{temp[1]}</div>
+                            <div style="color: #2E1C10; font-size: 23px; font-weight: 800; margin: 4px 0;">{temp[0]}</div>
+                            <p style="color: #8C827A; font-size: 13px; margin: 0;">{radius_display_text} 기준 맛집 추첨 중... 🎲</p>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+                    time.sleep(0.09 + (i * 0.05))
+
+                if final_menu:
+                    rolling_spot.markdown(
+                        f"""
+                        <div style="text-align: center; margin: 14px 0 14px 0; padding: 22px 18px; 
+                                    background: #FFFDF9; border-radius: 20px; border: 2px solid #E86A3E; 
+                                    box-shadow: 0 4px 20px rgba(232, 106, 62, 0.35);">
+                            <div style="font-size: 62px; line-height: 1; margin-bottom: 6px;">{final_menu[1]}</div>
+                            <div style="color: #2E1C10; font-size: 25px; font-weight: 900; margin: 4px 0;">{final_menu[0]}</div>
+                            <p style="color: #E86A3E; font-size: 13px; font-weight: 700; margin: 0;">당첨! 전문 식당 정보를 불러옵니다... ✨</p>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+                    time.sleep(0.25)
+
+                rolling_spot.empty()
+
+                if final_menu and places:
+                    st.session_state.spin_count += 1
+                    st.session_state.saved_result = {
+                        "menu": final_menu[0],
+                        "emoji": final_menu[1],
+                        "places": places,
+                        "region": region or "내 위치",
+                        "radius_text": radius_display_text,
+                        "center_lat": c_lat,
+                        "center_lng": c_lng,
+                        "id": st.session_state.spin_count
+                    }
+                    st.rerun()
+                else:
+                    st.warning("⚠️ 설정하신 조건(단품 전문점 및 가격대)을 만족하는 식당을 찾지 못했습니다. 반경을 넓히거나 가격 옵션을 '상관없음'으로 조정해 보세요!")
+                    time.sleep(1.8)
+                    st.rerun()
