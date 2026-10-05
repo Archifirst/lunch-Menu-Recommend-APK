@@ -1,0 +1,38 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch: # Actions 탭에서 수동으로 'Run workflow' 클릭 시 실행
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Set up Java JDK
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Install Bubblewrap CLI
+        run: |
+          npm install -g @bubblewrap/cli
+
+      - name: Generate Android APK Wrapper
+        # Streamlit URL을 입력하여 안드로이드 패키지 프로젝트 생성 및 빌드
+        run: |
+          echo "안드로이드 웹뷰 빌드 준비"
+          # bubblewrap init / build 명령어로 APK 생성 자동화
+          
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: 점메추-app-release
+          path: '**/*.apk'
