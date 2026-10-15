@@ -1,0 +1,54 @@
+name: Auto Web to APK
+
+on:
+  workflow_dispatch: # Actions 탭에서 버튼 클릭으로 실행
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 1. Node.js 및 Java 17 설치
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: 2. Cordova (웹->앱 자동 변환기) 설치
+        run: |
+          npm install -g cordova
+
+      - name: 3. 안드로이드 웹뷰 프로젝트 자동 생성 및 URL 연결
+        run: |
+          cordova create lunch_app com.lunch.roulette "점메추"
+          cd lunch_app
+          cordova platform add android
+          
+          # 위치 권한(GPS) 및 인터넷 권한 자동 주입
+          sed -i '/<\/widget>/i <edit-config file="app/src/main/AndroidManifest.xml" mode="merge" target="/manifest"><uses-permission android:name="android.permission.INTERNET" /><uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" /><uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" /></edit-config>' config.xml
+          
+          # 시작 페이지를 내 스트림릿 주소로 리다이렉트 처리
+          cat << 'EOF' > www/index.html
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+              <script>
+                  window.location.replace("https://lunch-menu-recommend-jnjrrtvhafjvsaxxaoi62j.streamlit.app/");
+              </script>
+          </head>
+          <body style="background-color: #FAF8F5; margin: 0;"></body>
+          </html>
+          EOF
+
+      - name: 4. APK 자동 빌드
+        run: |
+          cd lunch_app
+          cordova build android --debug
+
+      - name: 5. 완성된 APK 파일 추출
+        uses: actions/upload-artifact@v4
+        with:
+          name: Lunch-App-APK
+          path: lunch_app/platforms/android/app/build/outputs/apk/debug/app-debug.apk
